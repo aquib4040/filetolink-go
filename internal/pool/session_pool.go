@@ -424,3 +424,43 @@ func (p *SessionPool) StopAll() {
 	p.sessions = nil
 	p.tokenMap = make(map[string]*BotSession)
 }
+
+// SessionWorkload captures realtime per-bot worker streaming load
+type SessionWorkload struct {
+	Index         int
+	TokenSuffix   string
+	ActiveStreams int32
+	TotalStreams  int64
+	IsReady       bool
+	IsInvalid     bool
+}
+
+// GetWorkloads returns current stream connections and lifetime stats per bot token
+func (p *SessionPool) GetWorkloads() []SessionWorkload {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	var out []SessionWorkload
+	for _, bot := range p.sessions {
+		safeSuffix := bot.Token
+		if len(safeSuffix) > 6 {
+			safeSuffix = safeSuffix[len(safeSuffix)-6:]
+		}
+		isReady := false
+		select {
+		case <-bot.ready:
+			isReady = bot.readyErr == nil
+		default:
+		}
+
+		out = append(out, SessionWorkload{
+			Index:         bot.Index,
+			TokenSuffix:   safeSuffix,
+			ActiveStreams: bot.ActiveDownloads.Load(),
+			TotalStreams:  bot.TotalDownloads.Load(),
+			IsReady:       isReady,
+			IsInvalid:     p.IsTokenInvalid(bot.Token),
+		})
+	}
+	return out
+}

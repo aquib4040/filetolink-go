@@ -9,6 +9,42 @@ import (
 	"time"
 )
 
+func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
+	peer := toInputPeer(chatID)
+	workloads := bm.pool.GetWorkloads()
+	uptime := time.Since(bm.uptime).Round(time.Second)
+
+	totalActive := int32(0)
+	for _, w := range workloads {
+		totalActive += w.ActiveStreams
+	}
+
+	var sb strings.Builder
+	sb.WriteString("🌐 <b>System Status:</b> <code>Operational</code>\n\n")
+	sb.WriteString(fmt.Sprintf("⏱ <b>Uptime:</b> <code>%s</code>\n", uptime))
+	sb.WriteString(fmt.Sprintf("🤖 <b>Bot Instances:</b> <code>%d</code>\n", len(workloads)))
+	sb.WriteString(fmt.Sprintf("⚡ <b>Total Workload:</b> <code>%d active streams</code>\n\n", totalActive))
+	sb.WriteString("📊 <b>Workload Distribution:</b>\n\n")
+
+	if len(workloads) == 0 {
+		sb.WriteString("<i>No worker bot sessions configured.</i>\n")
+	} else {
+		for _, w := range workloads {
+			statusTag := "ONLINE"
+			if w.IsInvalid {
+				statusTag = "INVALID / SKIPPED"
+			} else if !w.IsReady {
+				statusTag = "CONNECTING"
+			}
+
+			sb.WriteString(fmt.Sprintf("• <b>Client %d</b> (<code>...%s</code>): <b>%d</b> active connections (Total: %d) [<code>%s</code>]\n",
+				w.Index+1, w.TokenSuffix, w.ActiveStreams, w.TotalStreams, statusTag))
+		}
+	}
+
+	return bm.sendText(ctx, peer, sb.String())
+}
+
 func (bm *BotManager) handleStats(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
 	stats, _ := bm.database.GetTrafficStats(ctx)

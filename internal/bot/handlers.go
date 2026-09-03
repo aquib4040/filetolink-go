@@ -79,6 +79,12 @@ func (bm *BotManager) handleCommand(
 		}
 		return bm.handleRmFSub(ctx, chatID, args)
 
+	case "/status":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		return bm.handleStatus(ctx, chatID)
+
 	case "/stats":
 		if senderID != bm.cfg.OwnerID {
 			return bm.sendText(ctx, peer, "❌ Unauthorized.")
