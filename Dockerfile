@@ -6,11 +6,11 @@ WORKDIR /build
 RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN sed -i 's/^go .*/go 1.23/' go.mod && go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/filetolink-go .
+RUN sed -i 's/^go .*/go 1.23/' go.mod && CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/filetolink-go .
 
 # Final runtime stage
 FROM alpine:3.20
