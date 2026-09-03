@@ -1,0 +1,6 @@
+name = "canonbot-filetolink-go"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+TARGET_FQDN = "YOUR-STREAMING-FQDN.herokuapp.com"

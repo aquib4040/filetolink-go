@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "https://YOUR-STREAMING-FQDN.herokuapp.com/$1",
+      "status": 302
+    }
+  ]
+}

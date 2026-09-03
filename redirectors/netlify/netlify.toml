@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/*"
+  to = "https://YOUR-STREAMING-FQDN.herokuapp.com/:splat"
+  status = 302
+  force = true

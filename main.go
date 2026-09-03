@@ -18,7 +18,7 @@ import (
 
 func main() {
 	log.Println("======================================================")
-	log.Println("⚡ FileToLink Go: High-Performance Streaming Service")
+	log.Println("⚡ High-Performance Cloud MTProto Streaming Service")
 	log.Println("======================================================")
 
 	// 1. Load configuration

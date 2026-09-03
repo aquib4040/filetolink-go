@@ -190,6 +190,7 @@ func (bm *BotManager) registerBotCommands(ctx context.Context) error {
 	}
 
 	adminCommands := []tg.BotCommand{
+		{Command: "users", Description: "(Admin) View total user count"},
 		{Command: "status", Description: "(Admin) View bot worker workloads and connections"},
 		{Command: "stats", Description: "(Admin) View bandwidth and traffic stats"},
 		{Command: "speedtest", Description: "(Admin) Run network speed test"},

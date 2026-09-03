@@ -59,11 +59,11 @@ func NewHTTPServer(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *
 func (s *HTTPServer) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	// Web Player & Downloads (Stateless token in path, NO filename or hash in link)
+	// Web Player (/watch/) & Downloads (/dl/)
 	mux.HandleFunc("/watch/", s.handleWatch)
 	mux.HandleFunc("/dl/", s.handleDownload)
 	mux.HandleFunc("/watch", s.handlePermanentRedirect)
-	mux.HandleFunc("/download", s.handlePermanentRedirect)
+	mux.HandleFunc("/dl", s.handlePermanentRedirect)
 
 	// API endpoints
 	mux.HandleFunc("/api/generate_link", s.handleAPIGenerateLink)
@@ -397,13 +397,13 @@ func (s *HTTPServer) handlePermanentRedirect(w http.ResponseWriter, r *http.Requ
 		token = r.URL.Query().Get("token")
 	}
 	if token == "" {
-		http.Error(w, "Missing path parameter", http.StatusBadRequest)
+		http.Error(w, "Missing token parameter", http.StatusBadRequest)
 		return
 	}
 
-	target := fmt.Sprintf("%s/watch/%s", s.cfg.BuildBaseURL(), token)
-	if strings.Contains(r.URL.Path, "download") {
-		target = fmt.Sprintf("%s/dl/%s", s.cfg.BuildBaseURL(), token)
+	target := fmt.Sprintf("%s/watch/%s", s.cfg.BuildEffectiveBaseURL(), token)
+	if strings.Contains(r.URL.Path, "dl") || strings.Contains(r.URL.Path, "download") {
+		target = fmt.Sprintf("%s/dl/%s", s.cfg.BuildEffectiveBaseURL(), token)
 	}
 
 	http.Redirect(w, r, target, http.StatusFound)

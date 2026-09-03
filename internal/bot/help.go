@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"filetolink-go/internal/markup"
+
+	"github.com/gotd/td/tg"
 )
 
 func (bm *BotManager) handleHelp(ctx context.Context, chatID int64) error {
@@ -17,11 +21,28 @@ func (bm *BotManager) handleHelp(ctx context.Context, chatID int64) error {
 
 func (bm *BotManager) handleAbout(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
-	aboutText := "🌟 <b>FileToLink Go Edition</b>\n\n" +
-		"• High-throughput Go MTProto streaming service\n" +
-		"• Zero-database stateless encrypted link architecture\n" +
-		"• Built with ❤️ for maximum streaming performance"
-	return bm.sendText(ctx, peer, aboutText)
+	aboutText := "🌟 <b>FileToLink-Go Edition</b> 🌟\n\n" +
+		"• <b>Developer:</b> @ExE_AQUIB\n" +
+		"• <b>Updates Channel:</b> @Canon_Bots\n" +
+		"• <b>Source Code:</b> <a href=\"https://github.com/aquib4040/filetolink-go\">filetolink-go</a>\n\n" +
+		"🚀 <b>Performance & Architecture:</b>\n" +
+		"• Written in <b>Go</b> for blazing fast download speeds and extreme concurrency\n" +
+		"• Ultra-low memory footprint (~20-40 MB RAM), ideal for free and low-RAM cloud containers\n" +
+		"• Multi-worker MTProto parallel chunk fetching for maximum bandwidth\n" +
+		"• Zero-database stateless encrypted link tokens (AES-256-GCM)"
+
+	var rows [][]tg.KeyboardButtonClass
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Updates Channel"), "https://t.me/Canon_Bots", markup.StyleGreen),
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Developer"), "https://t.me/ExE_AQUIB", markup.StyleBlue),
+	})
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("GitHub Repo"), "https://github.com/aquib4040/filetolink-go", markup.StyleBlue),
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
+	})
+
+	_, err := bm.sendTextWithMarkup(ctx, peer, aboutText, markup.NewInlineMarkup(rows))
+	return err
 }
 
 func (bm *BotManager) handlePing(ctx context.Context, chatID int64) error {

@@ -45,6 +45,13 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 	return bm.sendText(ctx, peer, sb.String())
 }
 
+func (bm *BotManager) handleUsers(ctx context.Context, chatID int64) error {
+	peer := toInputPeer(chatID)
+	total := bm.database.TotalUsers(ctx)
+	text := fmt.Sprintf("👥 <b>Total Users:</b> <code>%d</code>", total)
+	return bm.sendText(ctx, peer, text)
+}
+
 func (bm *BotManager) handleStats(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
 	stats, _ := bm.database.GetTrafficStats(ctx)
@@ -208,7 +215,7 @@ func (bm *BotManager) handlePMMode(ctx context.Context, chatID int64, args []str
 
 func (bm *BotManager) handleRestart(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
-	msgID, err := bm.sendTextWithMarkup(ctx, peer, "🔄 <b>Restarting FileToLink streaming engine...</b>\n<i>Please wait a few seconds...</i>", nil)
+	msgID, err := bm.sendTextWithMarkup(ctx, peer, "🔄 <b>Restarting streaming engine...</b>\n<i>Please wait a few seconds...</i>", nil)
 	if err == nil {
 		_ = bm.database.SaveRestartMessage(ctx, int64(msgID), chatID)
 	}

@@ -31,15 +31,20 @@ func (bm *BotManager) handleStart(ctx context.Context, senderID, chatID int64, i
 	var rows [][]tg.KeyboardButtonClass
 	rows = append(rows, []tg.KeyboardButtonClass{
 		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Updates Channel"), "https://t.me/Anime_Canon", markup.StyleGreen),
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Developer"), "https://t.me/ExE_AQUIB", markup.StyleBlue),
+	})
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("GitHub Repo"), "https://github.com/aquib4040/filetolink-go", markup.StyleBlue),
 		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
 	})
 
-	welcomeText := "✨ <b>Welcome to FileToLink Pro!</b> ✨\n\n" +
-		"Send me any file, video, or document to get instant, permanent streaming and download links.\n\n" +
-		"⚡ <b>Key Features:</b>\n" +
-		"• High-speed parallel cloud streaming\n" +
-		"• Permanent links with instant seek & subtitle tracks\n" +
-		"• Works seamlessly in authorized groups & channels"
+	welcomeText := "✨ <b>Welcome to FileToLink-Go Edition!</b> ✨\n\n" +
+		"Send me any file, video, or document to get instant high-speed download and web streaming links.\n\n" +
+		"⚡ <b>Engine Highlights:</b>\n" +
+		"• Written in Go for ultra-fast throughput and minimal RAM usage\n" +
+		"• Optimized for free/low RAM cloud containers (Heroku, Docker, VPS)\n" +
+		"• Pure AES-256 stateless link encryption (zero DB load on playback)\n" +
+		"• Multi-bot worker rotation for maximum bandwidth distribution"
 
 	_, err := bm.sendTextWithMarkup(ctx, peer, welcomeText, markup.NewInlineMarkup(rows))
 	return err

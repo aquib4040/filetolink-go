@@ -30,7 +30,7 @@ func (bm *BotManager) handleLinkCommand(
 
 	// Check authorization in groups
 	if chatID < 0 && !bm.database.IsGCAuthorized(ctx, chatID) {
-		return bm.sendText(ctx, peer, "❌ <b>This group is not authorized to use FileToLink.</b>\nContact an admin.")
+		return bm.sendText(ctx, peer, "❌ <b>This group is not authorized for link generation.</b>\nContact an admin.")
 	}
 
 	replyHeader, ok := msg.ReplyTo.(*tg.MessageReplyHeader)

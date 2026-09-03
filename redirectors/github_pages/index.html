@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting to Stream...</title>
+  <script>
+    var TARGET_FQDN = "YOUR-STREAMING-FQDN.herokuapp.com";
+    var cleanTarget = TARGET_FQDN.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    var loc = window.location;
+    var dest = "https://" + cleanTarget + loc.pathname + loc.search + loc.hash;
+    window.location.replace(dest);
+  </script>
+</head>
+<body>
+  <p>Redirecting to stream...</p>
+</body>
+</html>
