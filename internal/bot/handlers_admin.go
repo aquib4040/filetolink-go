@@ -316,17 +316,6 @@ func (bm *BotManager) handleCommand(
 		}
 		return bm.sendMainSettingsPanel(ctx, peer, 0)
 
-	case "/set_fqdn":
-		if senderID != bm.cfg.OwnerID {
-			return bm.sendText(ctx, peer, "❌ Unauthorized.")
-		}
-		if len(args) < 1 {
-			return bm.sendText(ctx, peer, "⚠️ <b>Usage:</b> <code>/set_fqdn &lt;domain_or_url&gt;</code>")
-		}
-		domain := strings.Trim(strings.TrimPrefix(strings.TrimPrefix(args[0], "https://"), "http://"), "/")
-		_ = bm.UpdateSetting(ctx, "fqdn", domain)
-		return bm.sendText(ctx, peer, fmt.Sprintf("✅ Streaming domain (FQDN) updated to: <code>%s</code>", domain))
-
 	case "/set_shortener":
 		if senderID != bm.cfg.OwnerID {
 			return bm.sendText(ctx, peer, "❌ Unauthorized.")
@@ -420,21 +409,15 @@ func (bm *BotManager) sendMainSettingsPanel(ctx context.Context, peer tg.InputPe
 		site = "Not Configured"
 	}
 
-	fqdn := dyn.FQDN
-	if fqdn == "" {
-		fqdn = bm.cfg.FQDN
-	}
-
 	text := fmt.Sprintf("⚙️ <b>Bot Control Panel & Settings</b>\n\n"+
 		"• <b>Shorten Media Links:</b> <code>%s</code>\n"+
 		"• <b>Token Verification:</b> <code>%s</code>\n"+
 		"• <b>Token Validity (TTL):</b> <code>%d Hours</code>\n"+
 		"• <b>PM Mode (Direct Messages):</b> <code>%s</code>\n"+
 		"• <b>Batch Processing:</b> <code>%s</code>\n"+
-		"• <b>Streaming Domain (FQDN):</b> <code>%s</code>\n"+
 		"• <b>URL Shortener Site:</b> <code>%s</code>\n\n"+
 		"<i>Click buttons below to toggle options immediately. Saved to MongoDB!</i>",
-		smlStatus, tokStatus, dyn.TokenTTLHours, pmStatus, batchStatus, fqdn, site)
+		smlStatus, tokStatus, dyn.TokenTTLHours, pmStatus, batchStatus, site)
 
 	var rows [][]tg.KeyboardButtonClass
 

@@ -51,7 +51,6 @@ func NewBotManager(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *
 		ShortenerAPIKey:   cfg.ShortenerAPIKey,
 		PMMode:            cfg.PMModeDefault,
 		Batch:             cfg.Batch,
-		FQDN:              cfg.FQDN,
 	}
 
 	if d != nil {
@@ -113,10 +112,6 @@ func (bm *BotManager) UpdateSetting(ctx context.Context, field string, val any) 
 	case "batch":
 		if v, ok := val.(bool); ok {
 			bm.dynSettings.Batch = v
-		}
-	case "fqdn":
-		if v, ok := val.(string); ok {
-			bm.dynSettings.FQDN = v
 		}
 	}
 

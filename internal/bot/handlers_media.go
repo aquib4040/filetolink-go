@@ -124,14 +124,6 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 
 	// 8. Construct clean URLs (NO file hash and NO file name in URL!)
 	baseURL := bm.cfg.BuildEffectiveBaseURL()
-	if dyn.FQDN != "" && dyn.FQDN != bm.cfg.FQDN && !strings.Contains(dyn.FQDN, "localhost") {
-		proto := "http"
-		if bm.cfg.HasSSL {
-			proto = "https"
-		}
-		baseURL = fmt.Sprintf("%s://%s", proto, dyn.FQDN)
-	}
-
 	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
 	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
 

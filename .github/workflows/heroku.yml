@@ -1,4 +1,4 @@
-name: Deploy to Heroku Container
+name: Deploy to Heroku
 
 on:
   workflow_dispatch:
@@ -7,82 +7,62 @@ on:
 
 jobs:
   deploy:
-    name: Build & Deploy Container to Heroku
+    name: Heroku CLI Container Deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Authenticate with Heroku Container Registry
+      - name: Setup Heroku CLI Authentication
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
         run: |
-          echo "${{ secrets.HEROKU_API_KEY }}" | docker login --username=_ --password-stdin registry.heroku.com
+          echo "Setting up Heroku CLI credentials..."
+          cat << EOF > ~/.netrc
+          machine api.heroku.com
+            login ${HEROKU_EMAIL}
+            password ${HEROKU_API_KEY}
+          machine git.heroku.com
+            login ${HEROKU_EMAIL}
+            password ${HEROKU_API_KEY}
+          EOF
 
-      - name: Build and Push Docker image to Heroku
+      - name: Setup Heroku App & Auto-Detect Dynamic FQDN
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |
-          docker build -t registry.heroku.com/${HEROKU_APP_NAME}/web .
-          docker push registry.heroku.com/${HEROKU_APP_NAME}/web
-
-      - name: Auto-Detect Heroku Web URL & Set Dynamic FQDN
-        env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
-          echo "Querying Heroku API for App Web URL and domains..."
-          APP_JSON=$(curl -s -X GET "https://api.heroku.com/apps/${HEROKU_APP_NAME}" \
-            -H "Accept: application/vnd.heroku+json; version=3" \
-            -H "Authorization: Bearer ${HEROKU_API_KEY}")
-          
-          RAW_URL=$(echo "${APP_JSON}" | jq -r '.web_url // empty')
-          CLEAN_FQDN=$(echo "${RAW_URL}" | sed -e 's~https://~~' -e 's~http://~~' -e 's~/~~g')
-          
-          # Check domains API in case a routed domain is active
-          DOMAINS_JSON=$(curl -s -X GET "https://api.heroku.com/apps/${HEROKU_APP_NAME}/domains" \
-            -H "Accept: application/vnd.heroku+json; version=3" \
-            -H "Authorization: Bearer ${HEROKU_API_KEY}")
-          
-          DOMAIN_HOST=$(echo "${DOMAINS_JSON}" | jq -r '.[0].hostname // empty')
-          if [ -n "${DOMAIN_HOST}" ] && [ "${DOMAIN_HOST}" != "null" ]; then
-            CLEAN_FQDN="${DOMAIN_HOST}"
+          echo "Checking Heroku app status for '${HEROKU_APP_NAME}'..."
+          if ! heroku apps:info -a "${HEROKU_APP_NAME}" > /dev/null 2>&1; then
+            echo "App does not exist. Creating new Heroku app: ${HEROKU_APP_NAME}"
+            heroku apps:create "${HEROKU_APP_NAME}"
+          else
+            echo "Using existing Heroku app: ${HEROKU_APP_NAME}"
           fi
-          
-          if [ -z "${CLEAN_FQDN}" ] || [ "${CLEAN_FQDN}" = "null" ]; then
-            CLEAN_FQDN="${HEROKU_APP_NAME}.herokuapp.com"
-          fi
-          
-          echo "Discovered dynamic Heroku FQDN: ${CLEAN_FQDN}"
-          echo "Updating Heroku config-vars with auto-detected FQDN..."
-          
-          curl -s -X PATCH "https://api.heroku.com/apps/${HEROKU_APP_NAME}/config-vars" \
-            -d "{\"FQDN\":\"${CLEAN_FQDN}\",\"HEROKU_APP_NAME\":\"${HEROKU_APP_NAME}\"}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/vnd.heroku+json; version=3" \
-            -H "Authorization: Bearer ${HEROKU_API_KEY}"
-          
-          echo "FQDN config-var successfully synchronized!"
 
-      - name: Release Container on Heroku
+          echo "Setting stack to container for Docker builds..."
+          heroku stack:set container -a "${HEROKU_APP_NAME}"
+
+          echo "Querying dynamic App URL from Heroku..."
+          APP_INFO=$(heroku apps:info -a "${HEROKU_APP_NAME}" --json)
+          APP_URL=$(echo "${APP_INFO}" | jq -r '.app.web_url // empty')
+          CLEAN_FQDN=$(echo "${APP_URL}" | sed -e 's~https://~~' -e 's~http://~~' -e 's~/~~g')
+
+          echo "Discovered dynamic FQDN: ${CLEAN_FQDN}"
+          if [ -n "${CLEAN_FQDN}" ]; then
+            echo "Configuring FQDN in Heroku config-vars..."
+            heroku config:set FQDN="${CLEAN_FQDN}" -a "${HEROKU_APP_NAME}"
+          fi
+
+      - name: Deploy Container via Heroku Git Push
         env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
-          curl -n -X PATCH https://api.heroku.com/apps/${HEROKU_APP_NAME}/formation \
-            -d '{
-              "updates": [
-                {
-                  "type": "web",
-                  "docker_image": "'"$(docker inspect registry.heroku.com/${HEROKU_APP_NAME}/web --format='{{index .RepoDigests 0}}')"'",
-                  "quantity": 1,
-                  "size": "eco"
-                }
-              ]
-            }' \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/vnd.heroku+json; version=3.docker-releases" \
-            -H "Authorization: Bearer ${HEROKU_API_KEY}"
+          echo "Configuring Heroku Git Remote..."
+          heroku git:remote -a "${HEROKU_APP_NAME}"
 
+          echo "Pushing code to Heroku Container Stack..."
+          git push heroku main:main --force

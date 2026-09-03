@@ -574,7 +574,6 @@ type DynamicBotSettings struct {
 	ShortenerAPIKey   string `bson:"shortener_api_key"`
 	PMMode            bool   `bson:"pm_mode"`
 	Batch             bool   `bson:"batch"`
-	FQDN              string `bson:"fqdn"`
 }
 
 func (b *BotDatabase) GetDynamicSettings(ctx context.Context, def DynamicBotSettings) DynamicBotSettings {
@@ -611,9 +610,6 @@ func (b *BotDatabase) GetDynamicSettings(ctx context.Context, def DynamicBotSett
 	}
 	if v, ok := doc["batch"].(bool); ok {
 		res.Batch = v
-	}
-	if v, ok := doc["fqdn"].(string); ok && v != "" {
-		res.FQDN = v
 	}
 	return res
 }

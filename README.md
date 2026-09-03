@@ -36,7 +36,6 @@
 | `/stats` | **(Admin)** | View active bot pool sessions and transferred bandwidth metrics |
 | `/speedtest` | **(Admin)** | Run network latency and download speed benchmark |
 | `/settings` | **(Admin)** | Interactive control panel (toggle shortener, token auth, TTL, PM mode, batch) |
-| `/set_fqdn <url>` | **(Admin)** | Update streaming domain (FQDN) in database |
 | `/set_shortener <s|k>` | **(Admin)** | Update shortener site and API key credentials |
 | `/set_ttl <hours>` | **(Admin)** | Set token verification duration (e.g. 24 hours) |
 | `/fsub` | **(Admin)** | Interactive Force-Sub management panel |
