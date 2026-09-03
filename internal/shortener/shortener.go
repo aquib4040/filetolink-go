@@ -142,23 +142,24 @@ func (s *Shortener) Shorten(ctx context.Context, longURL string) string {
 	return short
 }
 
-func (s *Shortener) callAPI(ctx context.Context, longURL string) string {
-	siteLower := strings.ToLower(s.site)
-	var reqURL string
-
-	switch {
-	case strings.Contains(siteLower, "ouo.io"):
-		reqURL = fmt.Sprintf("http://ouo.io/api/%s?s=%s", s.apiKey, url.QueryEscape(longURL))
-	case strings.Contains(siteLower, "cutt.ly"):
-		reqURL = fmt.Sprintf("http://cutt.ly/api/api.php?key=%s&short=%s", s.apiKey, url.QueryEscape(longURL))
-	default:
-		proto := "https"
-		if !strings.HasPrefix(s.site, "http://") && !strings.HasPrefix(s.site, "https://") {
-			reqURL = fmt.Sprintf("%s://%s/api?api=%s&url=%s", proto, s.site, s.apiKey, url.QueryEscape(longURL))
-		} else {
-			reqURL = fmt.Sprintf("%s/api?api=%s&url=%s", s.site, s.apiKey, url.QueryEscape(longURL))
-		}
+func (s *Shortener) UpdateConfig(site, apiKey string, enabled bool) {
+	if s == nil {
+		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.site = strings.TrimRight(strings.TrimSpace(site), "/")
+	s.apiKey = strings.TrimSpace(apiKey)
+	s.enabled = enabled && s.site != "" && s.apiKey != ""
+}
+
+func (s *Shortener) callAPI(ctx context.Context, longURL string) string {
+	site := s.site
+	if !strings.HasPrefix(site, "http://") && !strings.HasPrefix(site, "https://") {
+		site = "https://" + site
+	}
+
+	reqURL := fmt.Sprintf("%s/api?api=%s&url=%s", site, s.apiKey, url.QueryEscape(longURL))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {

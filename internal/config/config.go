@@ -35,6 +35,8 @@ type Config struct {
 	ShortenerSite        string
 	ShortenerAPIKey      string
 	ShortenMediaLinks    bool
+	TokenEnabled         bool
+	TokenTTLHours        int
 	RateLimitRPS         int
 	RateLimitBurst       int
 	PingInterval         time.Duration
@@ -180,6 +182,13 @@ func LoadConfig() (*Config, error) {
 	shortenerSite := os.Getenv("URL_SHORTENER_SITE")
 	shortenerAPIKey := os.Getenv("URL_SHORTENER_API_KEY")
 	shortenLinks := strings.ToLower(os.Getenv("SHORTEN_MEDIA_LINKS")) == "true"
+	tokenEnabled := strings.ToLower(os.Getenv("TOKEN_ENABLED")) == "true" || strings.ToLower(os.Getenv("SHORTEN_ENABLED")) == "true"
+	tokenTTLHours := 24
+	if ttlStr := os.Getenv("TOKEN_TTL_HOURS"); ttlStr != "" {
+		if ttl, err := strconv.Atoi(ttlStr); err == nil && ttl > 0 {
+			tokenTTLHours = ttl
+		}
+	}
 
 	rateLimitRPS := 10
 	if rStr := os.Getenv("RATE_LIMIT_RPS"); rStr != "" {
@@ -227,6 +236,8 @@ func LoadConfig() (*Config, error) {
 		ShortenerSite:        shortenerSite,
 		ShortenerAPIKey:      shortenerAPIKey,
 		ShortenMediaLinks:    shortenLinks,
+		TokenEnabled:         tokenEnabled,
+		TokenTTLHours:        tokenTTLHours,
 		RateLimitRPS:         rateLimitRPS,
 		RateLimitBurst:       rateLimitBurst,
 		PingInterval:         pingInterval,

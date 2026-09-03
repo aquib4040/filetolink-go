@@ -33,7 +33,7 @@ jobs:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
-          echo "Querying Heroku API for App Web URL..."
+          echo "Querying Heroku API for App Web URL and domains..."
           APP_JSON=$(curl -s -X GET "https://api.heroku.com/apps/${HEROKU_APP_NAME}" \
             -H "Accept: application/vnd.heroku+json; version=3" \
             -H "Authorization: Bearer ${HEROKU_API_KEY}")
@@ -41,11 +41,21 @@ jobs:
           RAW_URL=$(echo "${APP_JSON}" | jq -r '.web_url // empty')
           CLEAN_FQDN=$(echo "${RAW_URL}" | sed -e 's~https://~~' -e 's~http://~~' -e 's~/~~g')
           
+          # Check domains API in case a routed domain is active
+          DOMAINS_JSON=$(curl -s -X GET "https://api.heroku.com/apps/${HEROKU_APP_NAME}/domains" \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Authorization: Bearer ${HEROKU_API_KEY}")
+          
+          DOMAIN_HOST=$(echo "${DOMAINS_JSON}" | jq -r '.[0].hostname // empty')
+          if [ -n "${DOMAIN_HOST}" ] && [ "${DOMAIN_HOST}" != "null" ]; then
+            CLEAN_FQDN="${DOMAIN_HOST}"
+          fi
+          
           if [ -z "${CLEAN_FQDN}" ] || [ "${CLEAN_FQDN}" = "null" ]; then
             CLEAN_FQDN="${HEROKU_APP_NAME}.herokuapp.com"
           fi
           
-          echo "Discovered dynamic FQDN: ${CLEAN_FQDN}"
+          echo "Discovered dynamic Heroku FQDN: ${CLEAN_FQDN}"
           echo "Updating Heroku config-vars with auto-detected FQDN..."
           
           curl -s -X PATCH "https://api.heroku.com/apps/${HEROKU_APP_NAME}/config-vars" \

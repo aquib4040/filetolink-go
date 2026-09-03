@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"sync"
@@ -559,4 +560,159 @@ func (b *BotDatabase) ListBannedUsers(ctx context.Context) ([]BannedRecord, erro
 	var list []BannedRecord
 	err = cursor.All(ctx, &list)
 	return list, err
+}
+
+// -----------------------------------------------------------------------------
+// Dynamic In-Database Bot Settings (Manageable via Bot PM /settings panel)
+// -----------------------------------------------------------------------------
+
+type DynamicBotSettings struct {
+	ShortenMediaLinks bool   `bson:"shorten_media_links"`
+	TokenEnabled      bool   `bson:"token_enabled"`
+	TokenTTLHours     int    `bson:"token_ttl_hours"`
+	ShortenerSite     string `bson:"shortener_site"`
+	ShortenerAPIKey   string `bson:"shortener_api_key"`
+	PMMode            bool   `bson:"pm_mode"`
+	Batch             bool   `bson:"batch"`
+	FQDN              string `bson:"fqdn"`
+}
+
+func (b *BotDatabase) GetDynamicSettings(ctx context.Context, def DynamicBotSettings) DynamicBotSettings {
+	if !b.connected {
+		return def
+	}
+	col := b.db.Collection("bot_settings")
+	var doc bson.M
+	err := col.FindOne(ctx, bson.M{"type": "main_settings"}).Decode(&doc)
+	if err != nil {
+		return def
+	}
+
+	res := def
+	if v, ok := doc["shorten_media_links"].(bool); ok {
+		res.ShortenMediaLinks = v
+	}
+	if v, ok := doc["token_enabled"].(bool); ok {
+		res.TokenEnabled = v
+	}
+	if v, ok := doc["token_ttl_hours"].(int32); ok && v > 0 {
+		res.TokenTTLHours = int(v)
+	} else if v, ok := doc["token_ttl_hours"].(int64); ok && v > 0 {
+		res.TokenTTLHours = int(v)
+	}
+	if v, ok := doc["shortener_site"].(string); ok && v != "" {
+		res.ShortenerSite = v
+	}
+	if v, ok := doc["shortener_api_key"].(string); ok && v != "" {
+		res.ShortenerAPIKey = v
+	}
+	if v, ok := doc["pm_mode"].(bool); ok {
+		res.PMMode = v
+	}
+	if v, ok := doc["batch"].(bool); ok {
+		res.Batch = v
+	}
+	if v, ok := doc["fqdn"].(string); ok && v != "" {
+		res.FQDN = v
+	}
+	return res
+}
+
+func (b *BotDatabase) SetDynamicSetting(ctx context.Context, field string, value any) error {
+	if !b.connected {
+		return fmt.Errorf("db not connected")
+	}
+	col := b.db.Collection("bot_settings")
+	_, err := col.UpdateOne(ctx,
+		bson.M{"type": "main_settings"},
+		bson.M{"$set": bson.M{field: value, "updated_at": time.Now()}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+// -----------------------------------------------------------------------------
+// Token Verification System (Shorten Enable / Token TTL)
+// -----------------------------------------------------------------------------
+
+type UserTokenRecord struct {
+	UserID    int64     `bson:"user_id"`
+	Token     string    `bson:"token"`
+	Activated bool      `bson:"activated"`
+	ExpiresAt time.Time `bson:"expires_at"`
+	CreatedAt time.Time `bson:"created_at"`
+}
+
+func (b *BotDatabase) CreateVerificationToken(ctx context.Context, userID int64, ttlHours int) (string, error) {
+	if !b.connected {
+		return "", fmt.Errorf("db not connected")
+	}
+	col := b.db.Collection("user_tokens")
+
+	// Return existing unactivated valid token if generated recently
+	var existing UserTokenRecord
+	err := col.FindOne(ctx, bson.M{
+		"user_id":   userID,
+		"activated": false,
+		"created_at": bson.M{"$gt": time.Now().Add(-1 * time.Hour)},
+	}).Decode(&existing)
+	if err == nil && existing.Token != "" {
+		return existing.Token, nil
+	}
+
+	token := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%d:%d:%d", userID, time.Now().UnixNano(), ttlHours))))[:16]
+	rec := UserTokenRecord{
+		UserID:    userID,
+		Token:     token,
+		Activated: false,
+		ExpiresAt: time.Now().Add(time.Duration(ttlHours) * time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	_, err = col.UpdateOne(ctx,
+		bson.M{"user_id": userID, "activated": false},
+		bson.M{"$set": rec},
+		options.Update().SetUpsert(true),
+	)
+	return token, err
+}
+
+func (b *BotDatabase) ActivateVerificationToken(ctx context.Context, token string, ttlHours int) (bool, int64, error) {
+	if !b.connected || token == "" {
+		return false, 0, nil
+	}
+	col := b.db.Collection("user_tokens")
+	var rec UserTokenRecord
+	err := col.FindOne(ctx, bson.M{"token": token}).Decode(&rec)
+	if err != nil {
+		return false, 0, err
+	}
+
+	expiresAt := time.Now().Add(time.Duration(ttlHours) * time.Hour)
+	_, err = col.UpdateOne(ctx,
+		bson.M{"token": token},
+		bson.M{"$set": bson.M{
+			"activated":  true,
+			"expires_at": expiresAt,
+			"activated_at": time.Now(),
+		}},
+	)
+	if err != nil {
+		return false, rec.UserID, err
+	}
+	return true, rec.UserID, nil
+}
+
+func (b *BotDatabase) IsUserTokenVerified(ctx context.Context, userID int64) bool {
+	if !b.connected || userID == 0 {
+		return false
+	}
+	col := b.db.Collection("user_tokens")
+	var rec UserTokenRecord
+	err := col.FindOne(ctx, bson.M{
+		"user_id":    userID,
+		"activated":  true,
+		"expires_at": bson.M{"$gt": time.Now()},
+	}).Decode(&rec)
+	return err == nil && rec.Activated
 }

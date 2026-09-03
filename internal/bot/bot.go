@@ -32,26 +32,98 @@ type BotManager struct {
 	shortener  *shortener.Shortener
 	client     *telegram.Client
 	api        *tg.Client
-	botUser    *tg.User
-	dispatcher tg.UpdateDispatcher
-	uptime     time.Time
-	mu         sync.RWMutex
+	botUser     *tg.User
+	dispatcher  tg.UpdateDispatcher
+	uptime      time.Time
+	dynSettings db.DynamicBotSettings
+	settingsMu  sync.RWMutex
+	mu          sync.RWMutex
 }
 
 func NewBotManager(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *BotManager {
 	dispatcher := tg.NewUpdateDispatcher()
 
+	initialSettings := db.DynamicBotSettings{
+		ShortenMediaLinks: cfg.ShortenMediaLinks,
+		TokenEnabled:      cfg.TokenEnabled,
+		TokenTTLHours:     cfg.TokenTTLHours,
+		ShortenerSite:     cfg.ShortenerSite,
+		ShortenerAPIKey:   cfg.ShortenerAPIKey,
+		PMMode:            cfg.PMModeDefault,
+		Batch:             cfg.Batch,
+		FQDN:              cfg.FQDN,
+	}
+
+	if d != nil {
+		initialSettings = d.GetDynamicSettings(context.Background(), initialSettings)
+	}
+
 	bm := &BotManager{
-		cfg:        cfg,
-		pool:       p,
-		database:   d,
-		shortener:  shortener.NewURLShortener(cfg.ShortenerSite, cfg.ShortenerAPIKey, cfg.ShortenMediaLinks),
-		dispatcher: dispatcher,
-		uptime:     time.Now(),
+		cfg:         cfg,
+		pool:        p,
+		database:    d,
+		shortener:   shortener.NewURLShortener(initialSettings.ShortenerSite, initialSettings.ShortenerAPIKey, initialSettings.ShortenMediaLinks),
+		dispatcher:  dispatcher,
+		uptime:      time.Now(),
+		dynSettings: initialSettings,
 	}
 
 	bm.setupHandlers()
 	return bm
+}
+
+func (bm *BotManager) GetSettings() db.DynamicBotSettings {
+	bm.settingsMu.RLock()
+	defer bm.settingsMu.RUnlock()
+	return bm.dynSettings
+}
+
+func (bm *BotManager) UpdateSetting(ctx context.Context, field string, val any) error {
+	bm.settingsMu.Lock()
+	defer bm.settingsMu.Unlock()
+
+	switch field {
+	case "shorten_media_links":
+		if v, ok := val.(bool); ok {
+			bm.dynSettings.ShortenMediaLinks = v
+			bm.shortener.UpdateConfig(bm.dynSettings.ShortenerSite, bm.dynSettings.ShortenerAPIKey, v)
+		}
+	case "token_enabled":
+		if v, ok := val.(bool); ok {
+			bm.dynSettings.TokenEnabled = v
+		}
+	case "token_ttl_hours":
+		if v, ok := val.(int); ok {
+			bm.dynSettings.TokenTTLHours = v
+		}
+	case "shortener_site":
+		if v, ok := val.(string); ok {
+			bm.dynSettings.ShortenerSite = v
+			bm.shortener.UpdateConfig(v, bm.dynSettings.ShortenerAPIKey, bm.dynSettings.ShortenMediaLinks)
+		}
+	case "shortener_api_key":
+		if v, ok := val.(string); ok {
+			bm.dynSettings.ShortenerAPIKey = v
+			bm.shortener.UpdateConfig(bm.dynSettings.ShortenerSite, v, bm.dynSettings.ShortenMediaLinks)
+		}
+	case "pm_mode":
+		if v, ok := val.(bool); ok {
+			bm.dynSettings.PMMode = v
+		}
+	case "batch":
+		if v, ok := val.(bool); ok {
+			bm.dynSettings.Batch = v
+		}
+	case "fqdn":
+		if v, ok := val.(string); ok {
+			bm.dynSettings.FQDN = v
+		}
+	}
+
+	if bm.database != nil {
+		return bm.database.SetDynamicSetting(ctx, field, val)
+	}
+	return nil
 }
 
 func (bm *BotManager) Start(ctx context.Context) error {
@@ -214,6 +286,63 @@ func (bm *BotManager) setupHandlers() {
 				Message: "Closed",
 			})
 			return nil
+		}
+
+		if u.UserID == bm.cfg.OwnerID {
+			peer := &tg.InputPeerUser{UserID: u.UserID}
+			switch data {
+			case "set_toggle_sml":
+				cur := bm.GetSettings().ShortenMediaLinks
+				_ = bm.UpdateSetting(ctx, "shorten_media_links", !cur)
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "Updated"})
+				return nil
+			case "set_toggle_token":
+				cur := bm.GetSettings().TokenEnabled
+				_ = bm.UpdateSetting(ctx, "token_enabled", !cur)
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "Updated"})
+				return nil
+			case "set_ttl_step":
+				cur := bm.GetSettings().TokenTTLHours
+				next := 12
+				switch cur {
+				case 6:
+					next = 12
+				case 12:
+					next = 24
+				case 24:
+					next = 48
+				case 48:
+					next = 6
+				default:
+					next = 24
+				}
+				_ = bm.UpdateSetting(ctx, "token_ttl_hours", next)
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: fmt.Sprintf("TTL: %dh", next)})
+				return nil
+			case "set_toggle_pm":
+				cur := bm.GetSettings().PMMode
+				_ = bm.UpdateSetting(ctx, "pm_mode", !cur)
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "Updated"})
+				return nil
+			case "set_toggle_batch":
+				cur := bm.GetSettings().Batch
+				_ = bm.UpdateSetting(ctx, "batch", !cur)
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "Updated"})
+				return nil
+			case "set_fsub_menu":
+				_ = bm.sendFSubSettingsPanel(ctx, peer)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "FSub Panel"})
+				return nil
+			case "set_refresh":
+				_ = bm.sendMainSettingsPanel(ctx, peer, u.MsgID)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{QueryID: u.QueryID, Message: "Refreshed"})
+				return nil
+			}
 		}
 
 		if strings.HasPrefix(data, "fsub_rm_") {

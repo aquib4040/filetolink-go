@@ -46,6 +46,37 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		return nil
 	}
 
+	dyn := bm.GetSettings()
+	isPaid := bm.database.IsPremiumUser(ctx, senderID) || senderID == bm.cfg.OwnerID
+
+	// 3.1 Token Verification Check (Shorten Enable / Token TTL)
+	if dyn.TokenEnabled && !isPaid {
+		if !bm.database.IsUserTokenVerified(ctx, senderID) {
+			token, err := bm.database.CreateVerificationToken(ctx, senderID, dyn.TokenTTLHours)
+			if err == nil {
+				botUsername := "bot"
+				if bm.botUser != nil && bm.botUser.Username != "" {
+					botUsername = bm.botUser.Username
+				}
+				verifyURL := fmt.Sprintf("https://t.me/%s?start=verify_%s", botUsername, token)
+				shortURL := bm.shortener.Shorten(ctx, verifyURL)
+
+				verifyText := fmt.Sprintf("🔐 <b>Token Verification Required</b>\n\n"+
+					"To generate streaming & download links for the next <b>%d hours</b>, please verify your access:\n\n"+
+					"👉 <i>Click the button below and pass the link to unlock the bot.</i>", dyn.TokenTTLHours)
+
+				var rows [][]tg.KeyboardButtonClass
+				rows = append(rows, []tg.KeyboardButtonClass{
+					markup.NewURLButtonWithStyle("👉 Verify Access Token", shortURL, markup.StyleGreen),
+					markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
+				})
+
+				_, _ = bm.sendTextWithMarkup(ctx, peer, verifyText, markup.NewInlineMarkup(rows))
+				return nil
+			}
+		}
+	}
+
 	// 4. Send initial status
 	statusMsgID, err := bm.sendTextWithMarkup(ctx, peer, "⏳ <b>Processing your file...</b>", nil)
 	if err != nil {
@@ -62,7 +93,7 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	})
 	if err != nil {
 		log.Printf("[Bot] Failed to forward media to BIN_CHANNEL: %v", err)
-		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Failed to process media file.</b>", nil)
+		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Failed to store media in storage channel.</b>", nil)
 		return err
 	}
 
@@ -93,12 +124,19 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 
 	// 8. Construct clean URLs (NO file hash and NO file name in URL!)
 	baseURL := bm.cfg.BuildEffectiveBaseURL()
+	if dyn.FQDN != "" && dyn.FQDN != bm.cfg.FQDN && !strings.Contains(dyn.FQDN, "localhost") {
+		proto := "http"
+		if bm.cfg.HasSSL {
+			proto = "https"
+		}
+		baseURL = fmt.Sprintf("%s://%s", proto, dyn.FQDN)
+	}
+
 	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
 	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
 
 	// Apply URL shortener for non-premium users if enabled
-	isPaid := bm.database.IsPremiumUser(ctx, senderID) || senderID == bm.cfg.OwnerID
-	if !isPaid && bm.shortener != nil && bm.shortener.Enabled() {
+	if !isPaid && dyn.ShortenMediaLinks && bm.shortener != nil && bm.shortener.Enabled() {
 		downloadURL = bm.shortener.Shorten(ctx, downloadURL)
 		streamURL = bm.shortener.Shorten(ctx, streamURL)
 	}
@@ -161,7 +199,7 @@ func (bm *BotManager) isAllowedInPM(ctx context.Context, userID int64) bool {
 	if bm.database.IsPremiumUser(ctx, userID) {
 		return true
 	}
-	return bm.database.GetPMMode(ctx, bm.cfg.PMModeDefault)
+	return bm.GetSettings().PMMode
 }
 
 func (bm *BotManager) sendStartInDMPrompt(ctx context.Context, peer tg.InputPeerClass, replyToID int) {
