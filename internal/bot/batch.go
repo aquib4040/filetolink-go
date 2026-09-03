@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"filetolink-go/internal/crypto"
 	"filetolink-go/internal/markup"
@@ -86,7 +85,7 @@ func (bm *BotManager) handleLinkCommand(
 		return bm.sendText(ctx, peer, "❌ Failed to resolve storage coordinates.")
 	}
 
-	fileName, fileSize, fileHash := extractMediaInfo(targetMsg)
+	fileName, fileSize, _ := extractMediaInfo(targetMsg)
 
 	// Generate compact stateless encrypted token (24 chars)
 	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)

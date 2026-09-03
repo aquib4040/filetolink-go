@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"filetolink-go/internal/crypto"
 	"filetolink-go/internal/markup"
@@ -100,7 +99,7 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	}
 
 	// 6. Extract file metadata
-	fileName, fileSize, fileHash := extractMediaInfo(msg)
+	fileName, fileSize, _ := extractMediaInfo(msg)
 
 	// 7. Generate compact stateless encrypted token (24 chars)
 	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)
