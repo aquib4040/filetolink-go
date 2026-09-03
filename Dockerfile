@@ -3,6 +3,8 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
 
+ENV GOTOOLCHAIN=auto
+
 RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./

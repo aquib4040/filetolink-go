@@ -1,6 +1,6 @@
 module filetolink-go
 
-go 1.23
+go 1.26
 
 require (
 	github.com/gotd/td v0.161.0
@@ -55,3 +55,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
+
+replace github.com/fatih/color => github.com/fatih/color v1.18.0
