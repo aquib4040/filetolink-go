@@ -3,51 +3,104 @@ package bot
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
+
+	"github.com/showwin/speedtest-go/speedtest"
 )
 
 func (bm *BotManager) handleSpeedtest(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
-	statusMsgID, err := bm.sendTextWithMarkup(ctx, peer, "⚡ <b>Running Network Speed Benchmark...</b>\n\nTesting ping & CDN download bandwidth...", nil)
+	statusMsgID, err := bm.sendTextWithMarkup(ctx, peer, "⚡ <i>Initiating Speedtest...</i>", nil)
 	if err != nil {
 		return err
 	}
 
-	startPing := time.Now()
-	testURL := "https://speed.cloudflare.com/__down?bytes=10485760" // 10MB test
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+	go func() {
+		// 1. Fetch user & network info
+		user, err := speedtest.FetchUserInfo()
+		if err != nil {
+			_ = bm.editMessage(ctx, peer, statusMsgID, "<b>ERROR:</b> <i>Can't connect to Speedtest Server at the moment, try again later!</i>", nil)
+			return
+		}
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		_ = bm.editMessage(ctx, peer, statusMsgID, fmt.Sprintf("❌ <b>Speedtest Failed:</b> %v", err), nil)
-		return err
-	}
-	defer resp.Body.Close()
+		_ = bm.editMessage(ctx, peer, statusMsgID, "⚡ <i>Finding best Speedtest server...</i>", nil)
 
-	pingMs := time.Since(startPing).Milliseconds()
+		// 2. Fetch server list and pick closest server
+		serverList, err := speedtest.FetchServers()
+		if err != nil || len(serverList) == 0 {
+			_ = bm.editMessage(ctx, peer, statusMsgID, "<b>ERROR:</b> <i>Failed to fetch speedtest servers list.</i>", nil)
+			return
+		}
 
-	startDownload := time.Now()
-	n, err := io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		_ = bm.editMessage(ctx, peer, statusMsgID, fmt.Sprintf("❌ <b>Speedtest read error:</b> %v", err), nil)
-		return err
-	}
-	duration := time.Since(startDownload).Seconds()
-	if duration <= 0 {
-		duration = 0.001
-	}
+		targets, err := serverList.FindServer([]int{})
+		if err != nil || len(targets) == 0 {
+			_ = bm.editMessage(ctx, peer, statusMsgID, "<b>ERROR:</b> <i>Could not find available speedtest servers.</i>", nil)
+			return
+		}
 
-	mbps := (float64(n*8) / (1024 * 1024)) / duration
+		server := targets[0]
 
-	resText := fmt.Sprintf("⚡ <b>Speedtest Results</b> ⚡\n\n"+
-		"• <b>Ping / Latency:</b> <code>%d ms</code>\n"+
-		"• <b>Transferred:</b> <code>%.2f MB</code>\n"+
-		"• <b>Download Speed:</b> <code>%.2f Mbps</code>\n"+
-		"• <b>Test Server:</b> <code>Cloudflare CDN Edge</code>",
-		pingMs, float64(n)/(1024*1024), mbps)
+		_ = bm.editMessage(ctx, peer, statusMsgID, fmt.Sprintf("⚡ <i>Running Ping & Download test on <b>%s (%s)</b>...</i>", server.Name, server.Country), nil)
 
-	return bm.editMessage(ctx, peer, statusMsgID, resText, nil)
+		// 3. Ping Test
+		_ = server.PingTest(nil)
+
+		// 4. Download Test
+		_ = server.DownloadTest()
+
+		_ = bm.editMessage(ctx, peer, statusMsgID, fmt.Sprintf("⚡ <i>Running Upload test on <b>%s</b>...</i>", server.Name), nil)
+
+		// 5. Upload Test
+		_ = server.UploadTest()
+
+		// Calculations (DLSpeed & ULSpeed are in Byte/s, * 8 for bps or / (1024*1024) for MB/s)
+		dlMBs := float64(server.DLSpeed) / (1024 * 1024)
+		ulMBs := float64(server.ULSpeed) / (1024 * 1024)
+		dlMbps := (float64(server.DLSpeed) * 8) / (1000 * 1000)
+		ulMbps := (float64(server.ULSpeed) * 8) / (1000 * 1000)
+
+		nowStr := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
+
+		isp := user.Isp
+		if isp == "" {
+			isp = "Unknown"
+		}
+		ip := user.IP
+		if ip == "" {
+			ip = "Hidden"
+		}
+
+		resultText := fmt.Sprintf(`⚡ <b><i>SPEEDTEST INFO</i></b>
+• <b>Upload:</b> <code>%.2f MB/s</code> (<code>%.2f Mbps</code>)
+• <b>Download:</b> <code>%.2f MB/s</code> (<code>%.2f Mbps</code>)
+• <b>Ping:</b> <code>%d ms</code>
+• <b>Jitter:</b> <code>%d ms</code>
+• <b>Time:</b> <code>%s</code>
+
+🌐 <b><i>SPEEDTEST SERVER</i></b>
+• <b>Name:</b> <code>%s</code>
+• <b>Country:</b> <code>%s</code>
+• <b>Sponsor:</b> <code>%s</code>
+• <b>Latency:</b> <code>%s</code>
+
+🖥 <b><i>CLIENT DETAILS</i></b>
+• <b>IP Address:</b> <code>%s</code>
+• <b>ISP:</b> <code>%s</code>`,
+			ulMBs, ulMbps,
+			dlMBs, dlMbps,
+			server.Latency.Milliseconds(),
+			server.Jitter.Milliseconds(),
+			nowStr,
+			server.Name,
+			server.Country,
+			server.Sponsor,
+			server.Latency.String(),
+			ip,
+			isp,
+		)
+
+		_ = bm.editMessage(ctx, peer, statusMsgID, resultText, nil)
+	}()
+
+	return nil
 }

@@ -398,6 +398,10 @@ func (bm *BotManager) routeMessage(ctx context.Context, msg *tg.Message) error {
 		parts := strings.Fields(text)
 		cmd := parts[0]
 		if atIdx := strings.Index(cmd, "@"); atIdx != -1 {
+			targetBot := cmd[atIdx+1:]
+			if bm.botUser != nil && bm.botUser.Username != "" && !strings.EqualFold(targetBot, bm.botUser.Username) {
+				return nil // Command intended for a different bot in the group
+			}
 			cmd = cmd[:atIdx]
 		}
 		args := parts[1:]

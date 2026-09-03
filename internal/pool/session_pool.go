@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	AuthTimeout = 5 * time.Second // Fast timeout: do not wait forever for invalid or broken tokens
+	AuthTimeout = 10 * time.Second // Safe timeout: prevents false-positive invalidation during network jitter while never hanging forever
 )
 
 // BotSession represents a single authenticated gotd MTProto bot session.
@@ -265,7 +265,7 @@ func (p *SessionPool) InitSession(apiID int, apiHash string, token string) (*Bot
 		}
 		return bot, nil
 	case <-time.After(AuthTimeout):
-		p.MarkTokenInvalid(token, "auth timeout (5s exceeded)")
+		p.MarkTokenInvalid(token, "auth timeout (10s exceeded)")
 		return nil, fmt.Errorf("timeout waiting for bot auth (token ...%s)", safeSuffix)
 	}
 }

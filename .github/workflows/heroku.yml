@@ -15,6 +15,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Official Heroku CLI
+        run: |
+          if ! command -v heroku &> /dev/null; then
+            echo "Installing official Heroku CLI..."
+            curl https://cli-assets.heroku.com/install.sh | sh
+          else
+            echo "Official Heroku CLI is already available: $(heroku --version)"
+          fi
+
       - name: Setup Heroku CLI Authentication
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
