@@ -251,7 +251,13 @@ func (pf *ParallelFetcher) StreamMessageRange(
 
 	for i := 0; i < concurrency; i++ {
 		go func() {
-			workerBot := bot
+			workerBot, bErr := pf.pool.GetNextAvailable(botTokens, int(apiID), apiHash)
+			if bErr != nil || workerBot == nil {
+				workerBot = bot
+			}
+			workerBot.StartDownload()
+			defer workerBot.EndDownload()
+
 			for t := range taskChan {
 				select {
 				case <-workerCtx.Done():
@@ -266,6 +272,14 @@ func (pf *ParallelFetcher) StreamMessageRange(
 					errStr := err.Error()
 					if strings.Contains(errStr, "FILE_REFERENCE_EXPIRED") || strings.Contains(errStr, "FILE_REFERENCE_INVALID") {
 						if rErr := refreshFileReference(workerBot); rErr == nil {
+							b, err = getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
+						}
+					} else if strings.Contains(errStr, "FLOOD_WAIT") {
+						// Rotate to another bot session from the pool to bypass floodwait immediately
+						if nextBot, nbErr := pf.pool.GetNextAvailable(botTokens, int(apiID), apiHash); nbErr == nil && nextBot != nil && nextBot != workerBot {
+							workerBot.EndDownload()
+							workerBot = nextBot
+							workerBot.StartDownload()
 							b, err = getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
 						}
 					}

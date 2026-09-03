@@ -78,11 +78,18 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/dl", s.handlePermanentRedirect)
 
 	// API endpoints
+	mux.HandleFunc("/reel_random", s.handleReelRandom)
 	mux.HandleFunc("/api/generate_link", s.handleAPIGenerateLink)
 	mux.HandleFunc("/api/file_stream_url", s.handleAPIFileStreamURL)
 	mux.HandleFunc("/api/stream/", s.handleAPIChatStream)
 	mux.HandleFunc("/api/tracks/", s.handleAPITracks)
 	mux.HandleFunc("/stats", s.handleStats)
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/favicon.ico")
+	})
+	mux.HandleFunc("/logo.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/logo.png")
+	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
@@ -619,6 +626,41 @@ func (s *HTTPServer) handleStats(w http.ResponseWriter, r *http.Request) {
 		"active_sessions":    s.pool.ActiveSessionCount(),
 		"traffic_stats":      traffic,
 		"uptime_seconds":     time.Now().Unix(),
+	})
+}
+
+func (s *HTTPServer) handleReelRandom(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if s.database == nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Database offline",
+		})
+		return
+	}
+
+	msgID, _ := s.database.GetRandomReelMedia(r.Context())
+	if msgID == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "No media found in reel collection",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":    true,
+		"message_id": msgID,
 	})
 }
 

@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"log"
 	"strings"
 
 	"filetolink-go/internal/pool"
@@ -21,39 +20,6 @@ func (bm *BotManager) checkReelMedia(ctx context.Context, msg *tg.Message, peerI
 	}
 
 	_ = bm.database.SaveReelMedia(ctx, msg.ID, fileType)
-}
-
-// syncReelChannelHistory caches recent media from the Reel Channel on startup
-func (bm *BotManager) syncReelChannelHistory(ctx context.Context) {
-	if bm.cfg.ReelChannelID == 0 {
-		return
-	}
-	bm.ResolveChannelAccessHash(ctx, bm.cfg.ReelChannelID)
-	reelPeer := toInputPeer(bm.cfg.ReelChannelID)
-	res, err := bm.api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
-		Peer:  reelPeer,
-		Limit: 50,
-	})
-	if err != nil {
-		log.Printf("[BotManager] Notice: Could not sync reel channel history: %v", err)
-		return
-	}
-
-	count := 0
-	msgs := extractMessagesFromClass(res)
-	for _, m := range msgs {
-		if m != nil && m.Media != nil {
-			fileType := "video"
-			if _, ok := m.Media.(*tg.MessageMediaPhoto); ok {
-				fileType = "photo"
-			}
-			_ = bm.database.SaveReelMedia(ctx, m.ID, fileType)
-			count++
-		}
-	}
-	if count > 0 {
-		log.Printf("[BotManager] Indexed %d reel media items from Reel Channel.", count)
-	}
 }
 
 // replyWithReel sends a random reel media with caption and markup, falling back to text

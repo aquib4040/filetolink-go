@@ -168,9 +168,6 @@ func (bm *BotManager) Start(ctx context.Context) error {
 			// Start dyno keepalive ping loop if configured
 			go bm.startKeepalive(ctx)
 
-			// Sync Reel Channel history for reply reels
-			go bm.syncReelChannelHistory(runCtx)
-
 			errChan <- nil
 			<-runCtx.Done()
 			return runCtx.Err()

@@ -71,10 +71,11 @@ func (bm *BotManager) handleLinkCommand(
 	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
 	binPeer := toInputPeer(bm.cfg.BinChannel)
 	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
-		FromPeer: peer,
-		ToPeer:   binPeer,
-		ID:       []int{targetMsg.ID},
-		RandomID: []int64{getRandomID()},
+		FromPeer:   peer,
+		ToPeer:     binPeer,
+		ID:         []int{targetMsg.ID},
+		RandomID:   []int64{getRandomID()},
+		DropAuthor: true,
 	})
 	if err != nil {
 		return bm.sendText(ctx, peer, "❌ Failed to store media in storage channel.")

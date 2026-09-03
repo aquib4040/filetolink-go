@@ -81,10 +81,11 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
 	binPeer := toInputPeer(bm.cfg.BinChannel)
 	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
-		FromPeer: peer,
-		ToPeer:   binPeer,
-		ID:       []int{msg.ID},
-		RandomID: []int64{getRandomID()},
+		FromPeer:   peer,
+		ToPeer:     binPeer,
+		ID:         []int{msg.ID},
+		RandomID:   []int64{getRandomID()},
+		DropAuthor: true,
 	})
 	if err != nil {
 		log.Printf("[Bot] Failed to forward media to BIN_CHANNEL: %v", err)
