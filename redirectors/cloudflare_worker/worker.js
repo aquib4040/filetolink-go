@@ -3,7 +3,7 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const target = (env.TARGET_FQDN || "YOUR-STREAMING-FQDN.herokuapp.com")
+    const target = (env.TARGET_FQDN || "filetolinkcanonbots-4b978cf5a538.herokuapp.com")
       .replace(/^https?:\/\//, "")
       .replace(/\/+$/, "");
 

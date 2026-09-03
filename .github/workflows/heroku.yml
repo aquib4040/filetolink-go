@@ -55,6 +55,20 @@ jobs:
           echo "Setting stack to container for Docker builds..."
           heroku stack:set container -a "${HEROKU_APP_NAME}"
 
+          echo "Syncing application secrets from GitHub Secrets to Heroku..."
+          VARS=()
+          while read -r entry; do
+            K=$(echo "$entry" | jq -r '.key')
+            V=$(echo "$entry" | jq -r '.value')
+            if [ -n "$K" ] && [ -n "$V" ]; then
+              VARS+=("$K=$V")
+            fi
+          done < <(echo '${{ toJson(secrets) }}' | jq -c 'to_entries[] | select(.key | test("^(GITHUB_|HEROKU_|ACTIONS_)") | not)')
+          if [ ${#VARS[@]} -gt 0 ]; then
+            echo "Applying ${#VARS[@]} config vars to Heroku app '${HEROKU_APP_NAME}'..."
+            heroku config:set "${VARS[@]}" -a "${HEROKU_APP_NAME}"
+          fi
+
           echo "Querying dynamic App URL from Heroku..."
           APP_INFO=$(heroku apps:info -a "${HEROKU_APP_NAME}" --json)
           APP_URL=$(echo "${APP_INFO}" | jq -r '.app.web_url // empty')
