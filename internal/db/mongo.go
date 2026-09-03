@@ -448,12 +448,14 @@ func (b *BotDatabase) SaveReelMedia(ctx context.Context, messageID int, fileType
 		return nil
 	}
 	col := b.db.Collection("reel_media")
+	now := time.Now().UTC()
 	_, err := col.UpdateOne(ctx,
 		bson.M{"message_id": messageID},
 		bson.M{"$set": bson.M{
 			"message_id": messageID,
 			"file_type":  fileType,
-			"created_at": time.Now(),
+			"added_at":   now,
+			"created_at": now,
 		}},
 		options.Update().SetUpsert(true),
 	)

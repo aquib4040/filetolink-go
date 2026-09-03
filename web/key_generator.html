@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AES-256 Cryptographic Key Generator | FileToLink Go</title>
+    <title>Cryptographic Key & Secret Generator | FileToLink Go</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
@@ -13,6 +13,7 @@
             --primary: #10b981;
             --primary-hover: #059669;
             --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
             --text-color: #f8fafc;
             --muted-text: #94a3b8;
             --border-color: rgba(255, 255, 255, 0.08);
@@ -32,43 +33,43 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 24px;
+            padding: 32px 20px;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
         }
 
         .glow {
             position: absolute;
-            width: 450px;
-            height: 450px;
+            width: 500px;
+            height: 500px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0) 70%);
-            filter: blur(60px);
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0) 70%);
+            filter: blur(70px);
             z-index: 1;
             pointer-events: none;
         }
-        .glow-1 { top: -100px; left: -100px; }
-        .glow-2 { bottom: -100px; right: -100px; background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%); }
+        .glow-1 { top: -120px; left: -120px; }
+        .glow-2 { bottom: -120px; right: -120px; background: radial-gradient(circle, rgba(139, 92, 246, 0.14) 0%, rgba(59, 130, 246, 0) 70%); }
 
         .card {
             position: relative;
             z-index: 10;
             background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 36px 32px;
+            border-radius: 24px;
+            padding: 40px 36px;
             width: 100%;
-            max-width: 580px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 640px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
             display: flex;
             flex-direction: column;
-            gap: 24px;
+            gap: 28px;
         }
 
         .header h1 {
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: 700;
             margin-bottom: 8px;
             background: linear-gradient(to right, #ffffff, #94a3b8);
@@ -78,8 +79,27 @@
 
         .header p {
             color: var(--muted-text);
-            font-size: 0.9rem;
+            font-size: 0.92rem;
             line-height: 1.5;
+        }
+
+        .section-title {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted-text);
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-title span {
+            color: #34d399;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            text-transform: none;
         }
 
         .tabs {
@@ -89,16 +109,17 @@
             padding: 4px;
             border-radius: 12px;
             border: 1px solid var(--border-color);
+            margin-bottom: 12px;
         }
 
         .tab-btn {
             flex: 1;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
             border: none;
             background: transparent;
             color: var(--muted-text);
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -115,18 +136,22 @@
             background: #090d16;
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 14px 16px;
+            padding: 12px 16px;
             position: relative;
         }
 
         .key-display {
             flex-grow: 1;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: #34d399;
             word-break: break-all;
             user-select: all;
             margin-right: 12px;
+        }
+
+        .secret-display {
+            color: #a78bfa;
         }
 
         .btn-copy {
@@ -135,7 +160,7 @@
             border: 1px solid var(--border-color);
             padding: 8px 16px;
             border-radius: 8px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -143,7 +168,7 @@
         }
 
         .btn-copy:hover {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.16);
         }
 
         .btn-generate {
@@ -157,6 +182,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
             box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+            width: 100%;
         }
 
         .btn-generate:hover {
@@ -164,18 +190,31 @@
             box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
         }
 
-        .hint {
-            font-size: 0.8rem;
-            color: var(--muted-text);
-            line-height: 1.4;
+        .env-snippet {
+            background: #090d16;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .hint code {
+        .env-snippet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--muted-text);
+            margin-bottom: 4px;
+        }
+
+        .env-snippet pre {
             font-family: 'JetBrains Mono', monospace;
-            background: rgba(255, 255, 255, 0.06);
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #f1f5f9;
+            font-size: 0.82rem;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
         .toast {
@@ -207,34 +246,63 @@
 
     <div class="card">
         <div class="header">
-            <h1>AES-256 Key Generator</h1>
-            <p>Generate a 32-byte (256-bit) cryptographically strong key for <code>ENCRYPTION_KEY</code> in <b>FileToLink Go</b>.</p>
+            <h1>Cryptographic Key Generator</h1>
+            <p>Generate high-entropy keys and signing secrets for <b>FileToLink Go</b>.</p>
         </div>
 
-        <div class="tabs">
-            <button class="tab-btn active" id="tab-b64" onclick="setMode('b64')">Base64 (Recommended)</button>
-            <button class="tab-btn" id="tab-pass" onclick="setMode('pass')">32-Char Passphrase</button>
-            <button class="tab-btn" id="tab-hex" onclick="setMode('hex')">Hex (64 chars)</button>
+        <!-- 1. ENCRYPTION_KEY -->
+        <div>
+            <div class="section-title">
+                1. Payload Encryption Key
+                <span>ENCRYPTION_KEY</span>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" id="tab-b64" onclick="setKeyMode('b64')">Base64 (32-byte)</button>
+                <button class="tab-btn" id="tab-pass" onclick="setKeyMode('pass')">32-Char ASCII</button>
+                <button class="tab-btn" id="tab-hex" onclick="setKeyMode('hex')">Hex (64 chars)</button>
+            </div>
+            <div class="key-container">
+                <span class="key-display" id="enc-field">Generating...</span>
+                <button class="btn-copy" onclick="copyText('enc-field', 'Encryption key copied!')">Copy</button>
+            </div>
         </div>
 
-        <div class="key-container">
-            <span class="key-display" id="key-field">Generating...</span>
-            <button class="btn-copy" id="btn-copy" onclick="copyKey()">Copy</button>
+        <!-- 2. BOT_SIGNING_SECRET -->
+        <div>
+            <div class="section-title">
+                2. Bot Signing & Integrity Secret
+                <span style="color: #a78bfa;">BOT_SIGNING_SECRET</span>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" id="tab-sec-alpha" onclick="setSecretMode('alpha')">Hex (64 chars)</button>
+                <button class="tab-btn" id="tab-sec-url" onclick="setSecretMode('url')">URL-Safe (48 chars)</button>
+                <button class="tab-btn" id="tab-sec-pass" onclick="setSecretMode('pass')">Alphanumeric (32 chars)</button>
+            </div>
+            <div class="key-container">
+                <span class="key-display secret-display" id="secret-field">Generating...</span>
+                <button class="btn-copy" onclick="copyText('secret-field', 'Signing secret copied!')">Copy</button>
+            </div>
         </div>
 
-        <button class="btn-generate" onclick="generateNewKey()">Generate New Key</button>
+        <!-- 3. Combined .env Block -->
+        <div class="env-snippet">
+            <div class="env-snippet-header">
+                <span>📋 Ready-to-use .env configuration</span>
+                <button class="btn-copy" style="padding: 4px 10px; font-size: 0.75rem;" onclick="copyEnvSnippet()">Copy Both</button>
+            </div>
+            <pre id="env-preview"># Loading...</pre>
+        </div>
 
-        <p class="hint" id="hint-text">
-            💡 Add this key to your <code>.env</code> file: <code>ENCRYPTION_KEY="..."</code>. In Go, it is decoded as exact 32-byte AES-256-GCM.
-        </p>
+        <button class="btn-generate" onclick="generateAll()">⚡ Generate New Keys</button>
     </div>
 
-    <div class="toast" id="toast">Key copied to clipboard!</div>
+    <div class="toast" id="toast">Copied to clipboard!</div>
 
     <script>
-        let currentMode = 'b64';
+        let currentKeyMode = 'b64';
+        let currentSecretMode = 'alpha';
 
-        function generateBytes(length) {
+        function getRandomBytes(length) {
             const bytes = new Uint8Array(length);
             window.crypto.getRandomValues(bytes);
             return bytes;
@@ -252,50 +320,89 @@
             return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
         }
 
-        function generatePassphrase(length) {
-            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?";
-            const bytes = generateBytes(length);
-            let result = "";
+        function generateCustomString(length, charset) {
+            const bytes = getRandomBytes(length);
+            let result = '';
             for (let i = 0; i < length; i++) {
                 result += charset[bytes[i] % charset.length];
             }
             return result;
         }
 
-        function setMode(mode) {
-            currentMode = mode;
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('tab-' + mode).classList.add('active');
-            generateNewKey();
+        function setKeyMode(mode) {
+            currentKeyMode = mode;
+            ['b64', 'pass', 'hex'].forEach(m => {
+                document.getElementById('tab-' + m).classList.toggle('active', m === mode);
+            });
+            updateKeys();
         }
 
-        function generateNewKey() {
-            let key = "";
-            const raw32 = generateBytes(32);
+        function setSecretMode(mode) {
+            currentSecretMode = mode;
+            ['alpha', 'url', 'pass'].forEach(m => {
+                document.getElementById('tab-sec-' + m).classList.toggle('active', m === mode);
+            });
+            updateKeys();
+        }
 
-            if (currentMode === 'b64') {
-                key = bytesToBase64(raw32);
-            } else if (currentMode === 'hex') {
-                key = bytesToHex(raw32);
+        function updateKeys() {
+            // 1. Generate ENCRYPTION_KEY
+            let encKey = '';
+            const raw32 = getRandomBytes(32);
+            if (currentKeyMode === 'b64') {
+                encKey = bytesToBase64(raw32);
+            } else if (currentKeyMode === 'hex') {
+                encKey = bytesToHex(raw32);
             } else {
-                key = generatePassphrase(32);
+                encKey = generateCustomString(32, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}");
             }
+            document.getElementById('enc-field').textContent = encKey;
 
-            document.getElementById('key-field').textContent = key;
+            // 2. Generate BOT_SIGNING_SECRET
+            let secret = '';
+            if (currentSecretMode === 'alpha') {
+                secret = bytesToHex(getRandomBytes(32)); // 64 hex characters
+            } else if (currentSecretMode === 'url') {
+                secret = generateCustomString(48, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_~");
+            } else {
+                secret = generateCustomString(32, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+            }
+            document.getElementById('secret-field').textContent = secret;
+
+            // 3. Update combined snippet
+            document.getElementById('env-preview').textContent = 
+`ENCRYPTION_KEY=${encKey}
+BOT_SIGNING_SECRET=${secret}`;
         }
 
-        function copyKey() {
-            const keyText = document.getElementById('key-field').textContent;
-            navigator.clipboard.writeText(keyText).then(() => {
-                const toast = document.getElementById('toast');
-                toast.classList.add('show');
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                }, 2000);
+        function generateAll() {
+            updateKeys();
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        function copyText(elementId, msg) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(msg);
             });
         }
 
-        window.onload = generateNewKey;
+        function copyEnvSnippet() {
+            const text = document.getElementById('env-preview').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('.env snippet copied!');
+            });
+        }
+
+        window.onload = generateAll;
     </script>
 </body>
 </html>
