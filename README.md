@@ -1,106 +1,208 @@
-# ⚡ FileToLink Go
+# ⚡ FileToLink Go (Pro Edition)
 
-High-performance, production-ready Telegram file-to-link streaming and download service written in Go.
+> **High-Performance Telegram MTProto Streaming & Direct Download Engine written in Pure Go.**
+> Zero CGO, low memory footprint (~10 MB RAM per session), 16-thread chunk division, stateless AES-256 encrypted URLs, on-the-fly multi-audio & subtitle switching, and plug-and-play REST APIs.
 
-Powered by `gotd/td` MTProto, parallel chunk streaming with zero-CGO, and a stateless encrypted link architecture.
-
----
-
-## 🌟 Key Features
-
-- **Pure Go & Zero CGO**: Built on `gotd/td` MTProto client, consuming minimal memory (~10 MB RAM per worker session).
-- **Stateless Encrypted Link Generation**: Streaming and download links do **not** expose database IDs, file hashes, or file names. Everything is encrypted statelessly via AES-256-GCM.
-- **Hidden Hashes & Names in URLs**: Clean, permanent links (`/watch/{token}` and `/dl/{token}`). File names and hashes are strictly sent via HTTP `Content-Disposition` on download.
-- **High-Throughput Parallel Fetcher**: Splits files into aligned 1 MiB Telegram parts across configurable download threads (`DOWNLOAD_THREADS=16`) with automatic in-flight `FILE_REFERENCE_EXPIRED` refreshing.
-- **Multi-Bot Session Pool**: Dynamically balances streaming workload across dozens of worker bots (`MULTI_TOKEN1..N`) with instant timeout detection and in-memory skipping for invalid tokens.
-- **FFmpeg On-the-Fly Remuxing**: Real-time audio track and subtitle switching with fast `-ss` keyframe seeking.
-- **Bandwidth & User Analytics**: MongoDB integration for tracking streamed bytes across daily, weekly, monthly, yearly, and all-time windows, as well as tracking users and group authorizations.
-- **Start in DM & Dynamic FSub**: Forces users in groups to start the bot in private first before receiving links, and verifies dynamic force-subscription channels.
-- **Colorful Telegram Buttons**: High-contrast UI with success (green), danger (red), and primary (blue) button styles and small-caps typography.
-- **Full REST API Suite**: Includes `/api/generate_link`, `/api/file_stream_url`, `/api/stream/{chat_id}/{path}`, `/api/tracks/{token}`, `/stats`, and `/health`.
+[![CI Pipeline](https://github.com/aquib4040/filetolink-go/actions/workflows/ci.yml/badge.svg)](https://github.com/aquib4040/filetolink-go/actions/workflows/ci.yml)
+[![Release Builds](https://github.com/aquib4040/filetolink-go/actions/workflows/release.yml/badge.svg)](https://github.com/aquib4040/filetolink-go/actions/workflows/release.yml)
+[![Telegram Channel](https://img.shields.io/badge/Telegram-Channel-blue.svg?logo=telegram)](https://t.me/Anime_Canon)
 
 ---
 
-## 🚀 Environment Configuration
+## 🚀 Key Features
 
-Copy `.env.example` to `.env` and configure your credentials:
+- 🏎️ **Pure Go MTProto Performance**: Built upon `gotd/td` v0.161.0. Zero CGO dependencies, ultra-fast binary execution, and minimal memory usage.
+- 🔗 **Stateless AES-256-GCM Encrypted Links**: Complete zero-database token generation. All message coordinates, hashes, and metadata are authenticated and encrypted inside the link path (`/watch/{token}` and `/dl/{token}`). File names and hashes are never exposed in URLs.
+- ⚡ **16-Thread Parallel Downloader**: Divides files into 1 MiB chunks streamed in parallel across multiple bot sessions with automatic in-flight `FILE_REFERENCE_EXPIRED` refreshing and connection reset recovery.
+- 🎧 **On-the-Fly Audio & Subtitle Switching**: FFmpeg remuxing pipeline allowing video streaming with user-selectable audio and subtitle tracks without restarting the playback stream.
+- 🤖 **Multi-Bot Session Pool**: Dynamically balances streaming bandwidth across secondary bot tokens (`MULTI_TOKEN1..100`). Automatically detects and skips invalid or revoked tokens in memory without startup delays.
+- 📊 **Bandwidth & User Analytics**: Tracks daily, weekly, monthly, yearly, and all-time bandwidth transfer in MongoDB Atlas.
+- 🎨 **Modern Telegram UI**: Colorful inline buttons (`StyleGreen`, `StyleBlue`, `StyleRed`) ported from FileStore.
+- 🛠️ **Plug-and-Play REST APIs**: Direct HTTP endpoints to generate and stream files via code or external frontends.
+- 🛡️ **Built-in Security**: IP-based rate limiting, dynamic Force-Subscription (FSub), user ban system, and group authorization.
 
-```bash
-# Telegram Core API
-API_ID=12345678
-API_HASH=your_telegram_api_hash
-BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ
-OWNER_ID=123456789
+---
 
-# Storage & Channels
-BIN_CHANNEL=-1001234567890
+## 📖 Bot Commands Reference
 
-# Cryptography (32-byte secret key)
-ENCRYPTION_KEY=32_character_or_base64_secret_key
+| Command | Permission | Description |
+| :--- | :---: | :--- |
+| `/start` | Public | Start the bot, register user, and verify DM start permissions |
+| `/help` | Public | Comprehensive guide on bot features and group usage |
+| `/ping` | Public | Test bot latency and cloud server response time |
+| `/link` | Public | Reply to any media in an authorized group to generate links |
+| `/batch` | Public | Process consecutive files in batch (configurable via `BATCH` in `.env`) |
+| `/about` | Public | View bot version, engine details, and developer credits |
+| `/stats` | **(Admin)** | View active bot pool sessions and transferred bandwidth metrics |
+| `/speedtest` | **(Admin)** | Run network latency and download speed benchmark |
+| `/fsub` / `/settings` | **(Admin)** | Interactive Force-Sub management panel |
+| `/set_fsub <id> <link>`| **(Admin)** | Add a new required Force-Sub channel |
+| `/rm_fsub <id>` | **(Admin)** | Remove a Force-Sub channel from monitoring |
+| `/ban <id> [reason]` | **(Admin)** | Ban a user ID from accessing bot services |
+| `/unban <id>` | **(Admin)** | Unban a previously banned user |
+| `/listbanned` | **(Admin)** | List all currently banned users with timestamps |
+| `/auth_gc` | **(Admin)** | Authorize a Telegram group chat for link generation |
+| `/deauth_gc` | **(Admin)** | Deauthorize a Telegram group chat |
+| `/listauth_gc` | **(Admin)** | List all currently authorized group chats |
+| `/addpaid <id> <dur>` | **(Admin)** | Grant paid subscription with flexible duration (`30d`, `1m`, `3600s`) |
+| `/removepaid <id>` | **(Admin)** | Revoke a user's paid subscription |
+| `/listpaid` | **(Admin)** | List all active paid subscribers and expiry dates |
+| `/pmmode <on\|off>` | **(Admin)** | Toggle whether non-paid users can generate links in private DM |
+| `/restart` | **(Admin)** | Supervised process restart with completion notification |
 
-# Web Server & FQDN
-PORT=8080
-FQDN=your-domain.com
-HAS_SSL=true
+---
 
-# MongoDB Database URL
-DATABASE_URL=mongodb+srv://...
+## 🌐 Plug-and-Play REST API
 
-# Multi-Bot Worker Tokens
-MULTI_TOKEN1=...
-MULTI_TOKEN2=...
+FileToLink Go includes a comprehensive HTTP REST API for seamless integration with external apps, websites, and media players:
+
+### 1. Generate Stateless Link
+**Endpoint:** `POST /api/generate_link`  
+**Headers:** `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "chat_id": -1001234567890,
+  "message_id": 4567,
+  "file_name": "Sample.Movie.2026.1080p.mkv",
+  "file_size": 1572864000
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "token": "dGhpc2lzYW5leGFtcGxlc3RhdGVsZXNzdG9rZW4...",
+  "stream_url": "https://stream.yourdomain.com/watch/dGhpc2lzYW5leGFtcGxlc3RhdGVsZXNzdG9rZW4...",
+  "download_url": "https://stream.yourdomain.com/dl/dGhpc2lzYW5leGFtcGxlc3RhdGVsZXNzdG9rZW4..."
+}
 ```
 
 ---
 
-## 🛠️ Running Locally
+### 2. Resolve File Stream URL (Plug-and-Play)
+**Endpoint:** `GET /api/file_stream_url?chat_id={chat_id}&message_id={message_id}`
 
-### With Go
-```bash
-go run ./cmd/server
-```
-
-### With Docker
-```bash
-docker-compose up --build -d
+Returns instant direct download and stream URLs for any Telegram message coordinates:
+```json
+{
+  "success": true,
+  "stream_url": "https://stream.yourdomain.com/watch/{token}",
+  "download_url": "https://stream.yourdomain.com/dl/{token}"
+}
 ```
 
 ---
 
-## ☁️ Deployment
+### 3. Stream or Download via Encrypted Token
+- **Web Video Player:** `GET /watch/{token}`
+  - Includes custom HTML5 video player, audio track selector, subtitle switcher, and instant seeking.
+- **Direct High-Speed Download:** `GET /dl/{token}`
+  - Supports RFC 7233 HTTP `Range` requests, multi-thread download managers (IDM, aria2, curl), and native browser downloads.
 
-### Heroku Container Stack
-This project includes a native `heroku.yml` configured for container deployments.
+---
 
-1. Set the Heroku app stack to `container`:
+### 4. Audio & Subtitle Track Discovery
+**Endpoint:** `GET /api/tracks/{token}`
+
+Dynamically probes the media file via `ffprobe` and returns all available audio languages and subtitle tracks:
+```json
+{
+  "audio_tracks": [
+    {"index": 1, "language": "jpn", "title": "Japanese (Original)", "codec": "aac"},
+    {"index": 2, "language": "eng", "title": "English Dub", "codec": "aac"}
+  ],
+  "subtitle_tracks": [
+    {"index": 0, "language": "eng", "title": "English Full Subs"}
+  ]
+}
+```
+
+---
+
+### 5. System Analytics & Health Probe
+- `GET /stats`: Real-time transferred bandwidth counters and active session pool status.
+- `GET /health`: Liveness probe for load balancers and container orchestrators (returns `200 OK`).
+
+---
+
+## 🐳 Docker Deployment
+
+### Using Docker Compose (Recommended)
+
+1. Clone the repository and configure your environment:
    ```bash
-   heroku stack:set container -a your-app-name
+   git clone https://github.com/aquib4040/filetolink-go.git
+   cd filetolink-go
+   cp .env.example .env
+   # Edit .env with your Telegram credentials and MongoDB URI
    ```
-2. Push and deploy:
+
+2. Generate a 32-byte AES key:
+   - Open `web/key_generator.html` in any browser or generate via OpenSSL:
+     ```bash
+     openssl rand -base64 32
+     ```
+   - Paste the key into `ENCRYPTION_KEY` inside `.env`.
+
+3. Launch the container:
    ```bash
-   git push heroku main
+   docker compose up -d --build
+   ```
+
+4. View service logs:
+   ```bash
+   docker compose logs -f
    ```
 
 ---
 
-## 📜 Commands Reference
+## ☁️ Heroku Deployment
 
-| Command | Description |
-| :--- | :--- |
-| `/start` | Start the bot and get your user ID recorded |
-| `/help` | View help and usage instructions |
-| `/ping` | Check bot latency and server status |
-| `/link` | Generate permanent links for replied media in authorized groups |
-| `/auth_gc [chat_id]` | *(Owner)* Authorize a group chat |
-| `/deauth_gc [chat_id]` | *(Owner)* Deauthorize a group chat |
-| `/listauth_gc` | *(Owner)* List all authorized groups |
-| `/addpaid <user_id> <duration>` | *(Owner)* Add paid subscription (e.g. `30d`, `1m`, `3600s`) |
-| `/removepaid <user_id>` | *(Owner)* Revoke user paid status |
-| `/listpaid` | *(Owner)* View all active paid users |
-| `/pmmode [on\|off]` | *(Owner)* Toggle whether all users can use PM without paid status |
-| `/stats` | *(Owner)* View detailed bandwidth and user metrics |
+FileToLink Go is optimized for Heroku Container Stack with dynamic port binding (`$PORT`) and automatic domain detection.
+
+### Automatic Deployment via GitHub Actions
+1. Fork or clone this repository to GitHub.
+2. In your GitHub repository, navigate to **Settings > Secrets and variables > Actions**.
+3. Add the following secrets:
+   - `HEROKU_API_KEY`: Your Heroku API key
+   - `HEROKU_APP_NAME`: Your Heroku app name
+   - Plus your environment variables (`API_ID`, `API_HASH`, `BOT_TOKEN`, `BIN_CHANNEL`, `ENCRYPTION_KEY`, `DATABASE_URL`, etc.)
+4. The deployment workflow in `.github/workflows/heroku.yml` will automatically:
+   - Build and push the Docker container to the Heroku registry.
+   - Query the Heroku API to detect your app's web URL.
+   - Automatically configure `FQDN` to match your Heroku web URL without manual setup.
+   - Release the container with zero downtime.
 
 ---
 
-## 📄 License
-MIT License
+## 🔒 Security & Privacy Architecture
+
+- **No Stored Links**: Files are not mapped to database IDs. URLs are cryptographically self-contained tokens.
+- **Hidden Metadata**: File names and internal hashes are never exposed in public link URLs; file names are passed safely via standard HTTP `Content-Disposition`.
+- **In-Memory Rate Limiting**: Built-in token-bucket algorithm per client IP mitigates DDoS and scraping attacks.
+- **Non-Streamable File Filtering**: Non-media files (e.g. `.zip`, `.rar`, `.tar.gz`, `.exe`, `.apk`, `.iso`) only generate download links and omit video streaming buttons.
+
+---
+
+## 📌 Optional Configuration Notes
+
+> [!NOTE]
+> **Reel Channel (`REEL_CHANNEL_ID`)**:
+> The `REEL_CHANNEL_ID` setting is **completely optional** and intended primarily for personal media cataloging. If set, media posted in this channel is automatically indexed in MongoDB. If you do not need this feature, simply leave `REEL_CHANNEL_ID=0`.
+
+---
+
+## 🤝 Community & Support
+
+Join our Telegram channel for updates, help, and community discussions:
+- 📢 **Official Channel:** [@Anime_Canon](https://t.me/Anime_Canon)
+
+---
+
+## 📜 License
+
+FileToLink Go is distributed under the [MIT License](LICENSE).
+

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES-256 Cryptographic Key Generator | FileToLink Go</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.85);
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --accent-blue: #3b82f6;
+            --text-color: #f8fafc;
+            --muted-text: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glow {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0) 70%);
+            filter: blur(60px);
+            z-index: 1;
+            pointer-events: none;
+        }
+        .glow-1 { top: -100px; left: -100px; }
+        .glow-2 { bottom: -100px; right: -100px; background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%); }
+
+        .card {
+            position: relative;
+            z-index: 10;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 36px 32px;
+            width: 100%;
+            max-width: 580px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--muted-text);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--muted-text);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #0b0f19;
+        }
+
+        .key-container {
+            display: flex;
+            align-items: center;
+            background: #090d16;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px 16px;
+            position: relative;
+        }
+
+        .key-display {
+            flex-grow: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: #34d399;
+            word-break: break-all;
+            user-select: all;
+            margin-right: 12px;
+        }
+
+        .btn-copy {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-copy:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: #0b0f19;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: var(--muted-text);
+            line-height: 1.4;
+        }
+
+        .hint code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #f1f5f9;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: #0b0f19;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+            opacity: 0;
+        }
+
+        .toast.show {
+            bottom: 32px;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+
+    <div class="card">
+        <div class="header">
+            <h1>AES-256 Key Generator</h1>
+            <p>Generate a 32-byte (256-bit) cryptographically strong key for <code>ENCRYPTION_KEY</code> in <b>FileToLink Go</b>.</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-b64" onclick="setMode('b64')">Base64 (Recommended)</button>
+            <button class="tab-btn" id="tab-pass" onclick="setMode('pass')">32-Char Passphrase</button>
+            <button class="tab-btn" id="tab-hex" onclick="setMode('hex')">Hex (64 chars)</button>
+        </div>
+
+        <div class="key-container">
+            <span class="key-display" id="key-field">Generating...</span>
+            <button class="btn-copy" id="btn-copy" onclick="copyKey()">Copy</button>
+        </div>
+
+        <button class="btn-generate" onclick="generateNewKey()">Generate New Key</button>
+
+        <p class="hint" id="hint-text">
+            💡 Add this key to your <code>.env</code> file: <code>ENCRYPTION_KEY="..."</code>. In Go, it is decoded as exact 32-byte AES-256-GCM.
+        </p>
+    </div>
+
+    <div class="toast" id="toast">Key copied to clipboard!</div>
+
+    <script>
+        let currentMode = 'b64';
+
+        function generateBytes(length) {
+            const bytes = new Uint8Array(length);
+            window.crypto.getRandomValues(bytes);
+            return bytes;
+        }
+
+        function bytesToBase64(bytes) {
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        function bytesToHex(bytes) {
+            return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        function generatePassphrase(length) {
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?";
+            const bytes = generateBytes(length);
+            let result = "";
+            for (let i = 0; i < length; i++) {
+                result += charset[bytes[i] % charset.length];
+            }
+            return result;
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('tab-' + mode).classList.add('active');
+            generateNewKey();
+        }
+
+        function generateNewKey() {
+            let key = "";
+            const raw32 = generateBytes(32);
+
+            if (currentMode === 'b64') {
+                key = bytesToBase64(raw32);
+            } else if (currentMode === 'hex') {
+                key = bytesToHex(raw32);
+            } else {
+                key = generatePassphrase(32);
+            }
+
+            document.getElementById('key-field').textContent = key;
+        }
+
+        function copyKey() {
+            const keyText = document.getElementById('key-field').textContent;
+            navigator.clipboard.writeText(keyText).then(() => {
+                const toast = document.getElementById('toast');
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2000);
+            });
+        }
+
+        window.onload = generateNewKey;
+    </script>
+</body>
+</html>

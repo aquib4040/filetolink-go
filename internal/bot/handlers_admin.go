@@ -3,6 +3,9 @@ package bot
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -214,9 +217,181 @@ func (bm *BotManager) handleCommand(
 			humanBytes(tStats.Overall),
 		)
 		return bm.sendText(ctx, peer, statsText)
+
+	case "/speedtest":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		msgID, err := bm.sendTextWithMarkup(ctx, peer, "🚀 <b>Running Speed Test...</b>\n<i>Testing network latency and CDN throughput...</i>", nil)
+		if err != nil {
+			return err
+		}
+		go func() {
+			ping, speedMbps := runNetworkSpeedTest()
+			res := fmt.Sprintf("⚡ <b>SPEEDTEST RESULTS:</b>\n\n"+
+				"📶 <b>Ping Latency:</b> <code>%d ms</code>\n"+
+				"📥 <b>Download Speed:</b> <code>%.2f Mbps</code>\n"+
+				"🌐 <b>Host:</b> <code>Cloud Container / Heroku</code>\n"+
+				"🛰️ <b>Status:</b> <code>Optimal</code>", ping, speedMbps)
+			_ = bm.editMessage(ctx, peer, msgID, res, nil)
+		}()
+		return nil
+
+	case "/restart":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		msgID, _ := bm.sendTextWithMarkup(ctx, peer, "♻️ <b>Updating and Restarting Bot...</b>\n\n> ⏳ <i>Please wait a moment.</i>", nil)
+		_ = bm.database.SaveRestartMessage(ctx, int64(msgID), chatID)
+		go func() {
+			time.Sleep(1 * time.Second)
+			os.Exit(0)
+		}()
+		return nil
+
+	case "/ban":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		if len(args) < 1 {
+			return bm.sendText(ctx, peer, "⚠️ <b>Usage:</b> <code>/ban &lt;user_id&gt; [reason]</code>")
+		}
+		targetID, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil || targetID == 0 {
+			return bm.sendText(ctx, peer, "❌ Invalid user ID.")
+		}
+		reason := "Violation of terms"
+		if len(args) > 1 {
+			reason = strings.Join(args[1:], " ")
+		}
+		_ = bm.database.BanUser(ctx, targetID, reason)
+		return bm.sendText(ctx, peer, fmt.Sprintf("⛔ User <code>%d</code> has been banned.\nReason: <i>%s</i>", targetID, reason))
+
+	case "/unban":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		if len(args) < 1 {
+			return bm.sendText(ctx, peer, "⚠️ <b>Usage:</b> <code>/unban &lt;user_id&gt;</code>")
+		}
+		targetID, _ := strconv.ParseInt(args[0], 10, 64)
+		_ = bm.database.UnbanUser(ctx, targetID)
+		return bm.sendText(ctx, peer, fmt.Sprintf("✅ User <code>%d</code> has been unbanned.", targetID))
+
+	case "/listbanned", "/banned":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		banned, err := bm.database.ListBannedUsers(ctx)
+		if err != nil || len(banned) == 0 {
+			return bm.sendText(ctx, peer, "ℹ️ No banned users found.")
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("⛔ <b>Banned Users (%d):</b>\n\n", len(banned)))
+		for i, b := range banned {
+			sb.WriteString(fmt.Sprintf("%d. <code>%d</code> - %s (%s)\n", i+1, b.UserID, b.Reason, b.BannedAt.Format("2006-01-02")))
+		}
+		return bm.sendText(ctx, peer, sb.String())
+
+	case "/fsub", "/settings":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		return bm.sendFSubSettingsPanel(ctx, peer)
+
+	case "/set_fsub":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		if len(args) < 2 {
+			return bm.sendText(ctx, peer, "⚠️ <b>Usage:</b> <code>/set_fsub &lt;channel_id&gt; &lt;invite_link&gt;</code>")
+		}
+		chID, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil || chID == 0 {
+			return bm.sendText(ctx, peer, "❌ Invalid channel ID.")
+		}
+		inv := args[1]
+		_ = bm.database.AddFSubChannel(ctx, db.FSubChannel{
+			ChannelID: chID,
+			Title:     fmt.Sprintf("Channel %d", chID),
+			InviteURL: inv,
+		})
+		return bm.sendText(ctx, peer, fmt.Sprintf("✅ Force-Sub channel <code>%d</code> added.", chID))
+
+	case "/rm_fsub":
+		if senderID != bm.cfg.OwnerID {
+			return bm.sendText(ctx, peer, "❌ Unauthorized.")
+		}
+		if len(args) < 1 {
+			return bm.sendText(ctx, peer, "⚠️ <b>Usage:</b> <code>/rm_fsub &lt;channel_id&gt;</code>")
+		}
+		chID, _ := strconv.ParseInt(args[0], 10, 64)
+		_ = bm.database.RemoveFSubChannel(ctx, chID)
+		return bm.sendText(ctx, peer, fmt.Sprintf("✅ Force-Sub channel <code>%d</code> removed.", chID))
+
+	case "/batch":
+		if !bm.cfg.Batch {
+			return bm.sendText(ctx, peer, "⚠️ <b>Batch mode is currently disabled in bot configuration.</b>")
+		}
+		return bm.sendText(ctx, peer, "ℹ️ <b>Batch Mode:</b> Reply to the starting media file with <code>/link &lt;number_of_files&gt;</code> (up to 20 files).")
 	}
 
 	return nil
+}
+
+func (bm *BotManager) sendFSubSettingsPanel(ctx context.Context, peer tg.InputPeerClass) error {
+	channels, _ := bm.database.ListFSubChannels(ctx)
+	var sb strings.Builder
+	sb.WriteString("⚙️ <b>Force-Subscription (FSub) Settings</b>\n\n")
+
+	if len(channels) == 0 {
+		sb.WriteString("<i>No channels currently monitored. Users can freely use the bot.</i>\n\n")
+		sb.WriteString("To add a channel: <code>/set_fsub &lt;channel_id&gt; &lt;invite_link&gt;</code>")
+	} else {
+		sb.WriteString(fmt.Sprintf("<b>Active Monitored Channels (%d):</b>\n", len(channels)))
+		for i, ch := range channels {
+			sb.WriteString(fmt.Sprintf("%d. <code>%d</code> — <a href=\"%s\">Invite Link</a>\n", i+1, ch.ChannelID, ch.InviteURL))
+		}
+		sb.WriteString("\nTo remove a channel: <code>/rm_fsub &lt;channel_id&gt;</code>")
+	}
+
+	var rows [][]tg.KeyboardButtonClass
+	for _, ch := range channels {
+		rows = append(rows, []tg.KeyboardButtonClass{
+			markup.NewCallbackButtonWithStyle(fmt.Sprintf("❌ Remove %d", ch.ChannelID), fmt.Sprintf("fsub_rm_%d", ch.ChannelID), markup.StyleRed),
+		})
+	}
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
+	})
+
+	_, err := bm.sendTextWithMarkup(ctx, peer, sb.String(), markup.NewInlineMarkup(rows))
+	return err
+}
+
+func runNetworkSpeedTest() (int64, float64) {
+	testURL := "https://speed.cloudflare.com/__down?bytes=5000000" // 5MB download benchmark
+	start := time.Now()
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(testURL)
+	if err != nil {
+		return 0, 0
+	}
+	defer resp.Body.Close()
+
+	ping := time.Since(start).Milliseconds()
+
+	downloadStart := time.Now()
+	n, _ := io.Copy(io.Discard, resp.Body)
+	duration := time.Since(downloadStart).Seconds()
+
+	if duration <= 0 {
+		duration = 0.1
+	}
+
+	speedMbps := (float64(n*8) / (1024 * 1024)) / duration
+	return ping, speedMbps
 }
 
 func (bm *BotManager) handleLinkCommand(

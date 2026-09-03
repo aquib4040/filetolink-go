@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,27 +96,62 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
 	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
 
-	// 9. Format response text
-	text := fmt.Sprintf("✨ <b>Your Links are Ready!</b> ✨\n\n"+
-		"📁 <b>File:</b> <code>%s</code>\n"+
-		"📦 <b>Size:</b> <code>%s</code>\n\n"+
-		"🚀 <b>Download:</b> <code>%s</code>\n"+
-		"🖥️ <b>Stream:</b> <code>%s</code>\n\n"+
-		"⌛️ <i>Links remain permanently active.</i>",
-		htmlEscape(fileName), humanBytes(fileSize), downloadURL, streamURL)
+	// Apply URL shortener for non-premium users if enabled
+	isPaid := bm.database.IsPremiumUser(ctx, senderID) || senderID == bm.cfg.OwnerID
+	if !isPaid && bm.shortener != nil && bm.shortener.Enabled() {
+		downloadURL = bm.shortener.Shorten(ctx, downloadURL)
+		streamURL = bm.shortener.Shorten(ctx, streamURL)
+	}
 
-	// 10. Colorful buttons from filestore
+	streamable := isStreamable(fileName)
+
+	// 9. Format response text & colorful buttons
+	var text string
 	var rows [][]tg.KeyboardButtonClass
-	rows = append(rows, []tg.KeyboardButtonClass{
-		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Stream"), streamURL, markup.StyleGreen),
-		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Download"), downloadURL, markup.StyleBlue),
-	})
+
+	if streamable {
+		text = fmt.Sprintf("✨ <b>Your Links are Ready!</b> ✨\n\n"+
+			"📁 <b>File:</b> <code>%s</code>\n"+
+			"📦 <b>Size:</b> <code>%s</code>\n\n"+
+			"🚀 <b>Download:</b> <code>%s</code>\n"+
+			"🖥️ <b>Stream:</b> <code>%s</code>\n\n"+
+			"⌛️ <i>Links remain permanently active.</i>",
+			htmlEscape(fileName), humanBytes(fileSize), downloadURL, streamURL)
+
+		rows = append(rows, []tg.KeyboardButtonClass{
+			markup.NewURLButtonWithStyle(markup.ToSmallCaps("Stream"), streamURL, markup.StyleGreen),
+			markup.NewURLButtonWithStyle(markup.ToSmallCaps("Download"), downloadURL, markup.StyleBlue),
+		})
+	} else {
+		text = fmt.Sprintf("✨ <b>Your Link is Ready!</b> ✨\n\n"+
+			"📁 <b>File:</b> <code>%s</code>\n"+
+			"📦 <b>Size:</b> <code>%s</code>\n\n"+
+			"🚀 <b>Download:</b> <code>%s</code>\n\n"+
+			"⌛️ <i>Link remains permanently active.</i>",
+			htmlEscape(fileName), humanBytes(fileSize), downloadURL)
+
+		rows = append(rows, []tg.KeyboardButtonClass{
+			markup.NewURLButtonWithStyle(markup.ToSmallCaps("Download"), downloadURL, markup.StyleBlue),
+		})
+	}
+
 	rows = append(rows, []tg.KeyboardButtonClass{
 		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
 	})
 
 	_ = bm.editMessage(ctx, peer, statusMsgID, text, markup.NewInlineMarkup(rows))
 	return nil
+}
+
+func isStreamable(fileName string) bool {
+	ext := strings.ToLower(filepath.Ext(fileName))
+	switch ext {
+	case ".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".wmv", ".m4v", ".ts",
+		".mp3", ".m4a", ".flac", ".wav", ".ogg", ".opus", ".aac":
+		return true
+	default:
+		return false
+	}
 }
 
 func (bm *BotManager) isAllowedInPM(ctx context.Context, userID int64) bool {

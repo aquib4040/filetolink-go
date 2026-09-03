@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -29,7 +30,14 @@ type Config struct {
 	MaxBatchFiles        int
 	Channel              bool
 	PMModeDefault        bool
+	Batch                bool
 	MultiTokens          []string
+	ShortenerSite        string
+	ShortenerAPIKey      string
+	ShortenMediaLinks    bool
+	RateLimitRPS         int
+	RateLimitBurst       int
+	PingInterval         time.Duration
 }
 
 func LoadConfig() (*Config, error) {
@@ -86,8 +94,12 @@ func LoadConfig() (*Config, error) {
 	}
 
 	fqdn := os.Getenv("FQDN")
-	if fqdn == "" {
-		fqdn = fmt.Sprintf("localhost:%d", port)
+	if fqdn == "" || strings.HasPrefix(fqdn, "localhost") {
+		if hApp := os.Getenv("HEROKU_APP_NAME"); hApp != "" {
+			fqdn = fmt.Sprintf("%s.herokuapp.com", hApp)
+		} else if fqdn == "" {
+			fqdn = fmt.Sprintf("localhost:%d", port)
+		}
 	}
 	fqdn = strings.TrimPrefix(fqdn, "http://")
 	fqdn = strings.TrimPrefix(fqdn, "https://")
@@ -151,6 +163,10 @@ func LoadConfig() (*Config, error) {
 
 	channelMode := strings.ToLower(os.Getenv("CHANNEL")) == "true"
 	pmMode := strings.ToLower(os.Getenv("PM_MODE_DEFAULT")) == "true"
+	batchMode := true
+	if bStr := os.Getenv("BATCH"); bStr != "" {
+		batchMode = strings.ToLower(bStr) == "true" || bStr == "1"
+	}
 
 	// Collect multi-tokens
 	var multiTokens []string
@@ -158,6 +174,31 @@ func LoadConfig() (*Config, error) {
 		key := fmt.Sprintf("MULTI_TOKEN%d", i)
 		if val := strings.Trim(strings.TrimSpace(os.Getenv(key)), `"'`); val != "" {
 			multiTokens = append(multiTokens, val)
+		}
+	}
+
+	shortenerSite := os.Getenv("URL_SHORTENER_SITE")
+	shortenerAPIKey := os.Getenv("URL_SHORTENER_API_KEY")
+	shortenLinks := strings.ToLower(os.Getenv("SHORTEN_MEDIA_LINKS")) == "true"
+
+	rateLimitRPS := 10
+	if rStr := os.Getenv("RATE_LIMIT_RPS"); rStr != "" {
+		if r, err := strconv.Atoi(rStr); err == nil && r > 0 {
+			rateLimitRPS = r
+		}
+	}
+
+	rateLimitBurst := 20
+	if bStr := os.Getenv("RATE_LIMIT_BURST"); bStr != "" {
+		if b, err := strconv.Atoi(bStr); err == nil && b > 0 {
+			rateLimitBurst = b
+		}
+	}
+
+	pingInterval := 10 * time.Minute
+	if piStr := os.Getenv("PING_INTERVAL"); piStr != "" {
+		if sec, err := strconv.Atoi(piStr); err == nil && sec > 0 {
+			pingInterval = time.Duration(sec) * time.Second
 		}
 	}
 
@@ -181,7 +222,14 @@ func LoadConfig() (*Config, error) {
 		MaxBatchFiles:        maxBatch,
 		Channel:              channelMode,
 		PMModeDefault:        pmMode,
+		Batch:                batchMode,
 		MultiTokens:          multiTokens,
+		ShortenerSite:        shortenerSite,
+		ShortenerAPIKey:      shortenerAPIKey,
+		ShortenMediaLinks:    shortenLinks,
+		RateLimitRPS:         rateLimitRPS,
+		RateLimitBurst:       rateLimitBurst,
+		PingInterval:         pingInterval,
 	}, nil
 }
 

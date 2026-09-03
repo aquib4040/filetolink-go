@@ -28,6 +28,7 @@ func NewParallelFetcher(p *pool.SessionPool) *ParallelFetcher {
 }
 
 func getFileWithRetry(ctx context.Context, api *tg.Client, location tg.InputFileLocationClass, offset int64, limit int) ([]byte, error) {
+	var lastErr error
 	for attempt := 0; attempt < 10; attempt++ {
 		select {
 		case <-ctx.Done():
@@ -47,6 +48,8 @@ func getFileWithRetry(ctx context.Context, api *tg.Client, location tg.InputFile
 			return nil, fmt.Errorf("unexpected response type from UploadGetFile")
 		}
 
+		lastErr = err
+
 		if d, ok := tgerr.AsFloodWait(err); ok {
 			waitTime := d
 			if waitTime < 1*time.Second {
@@ -61,16 +64,19 @@ func getFileWithRetry(ctx context.Context, api *tg.Client, location tg.InputFile
 			continue
 		}
 
-		if strings.Contains(err.Error(), "connection") || strings.Contains(err.Error(), "reset") ||
-			strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "broken pipe") ||
-			strings.Contains(err.Error(), "write tcp") || strings.Contains(err.Error(), "read tcp") {
-			time.Sleep(400 * time.Millisecond)
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "connection") || strings.Contains(errStr, "reset") ||
+			strings.Contains(errStr, "timeout") || strings.Contains(errStr, "broken pipe") ||
+			strings.Contains(errStr, "write tcp") || strings.Contains(errStr, "read tcp") ||
+			strings.Contains(errStr, "eof") || strings.Contains(errStr, "closed") {
+			backoff := time.Duration(300*(attempt+1))*time.Millisecond + time.Duration(rand.Intn(300))*time.Millisecond
+			time.Sleep(backoff)
 			continue
 		}
 
 		return nil, err
 	}
-	return nil, fmt.Errorf("exceeded max retries for offset %d", offset)
+	return nil, fmt.Errorf("exceeded max retries for offset %d: %v", offset, lastErr)
 }
 
 func (pf *ParallelFetcher) ResolveDocumentWithBot(

@@ -437,3 +437,126 @@ func (b *BotDatabase) ListFSubChannels(ctx context.Context) ([]FSubChannel, erro
 	err = cursor.All(ctx, &list)
 	return list, err
 }
+
+// -----------------------------------------------------------------------------
+// Reel Channel Media Storage
+// -----------------------------------------------------------------------------
+
+func (b *BotDatabase) SaveReelMedia(ctx context.Context, messageID int, fileType string) error {
+	if !b.connected || messageID == 0 {
+		return nil
+	}
+	col := b.db.Collection("reel_media")
+	_, err := col.UpdateOne(ctx,
+		bson.M{"message_id": messageID},
+		bson.M{"$set": bson.M{
+			"message_id": messageID,
+			"file_type":  fileType,
+			"created_at": time.Now(),
+		}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+// -----------------------------------------------------------------------------
+// Restart Notification Message Tracking
+// -----------------------------------------------------------------------------
+
+func (b *BotDatabase) SaveRestartMessage(ctx context.Context, messageID, chatID int64) error {
+	if !b.connected {
+		return nil
+	}
+	col := b.db.Collection("restart_message")
+	_, err := col.UpdateOne(ctx,
+		bson.M{"type": "restart"},
+		bson.M{"$set": bson.M{"message_id": messageID, "chat_id": chatID, "timestamp": time.Now()}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+func (b *BotDatabase) GetRestartMessage(ctx context.Context) (int64, int64, error) {
+	if !b.connected {
+		return 0, 0, fmt.Errorf("db not connected")
+	}
+	col := b.db.Collection("restart_message")
+	var doc struct {
+		MessageID int64 `bson:"message_id"`
+		ChatID    int64 `bson:"chat_id"`
+	}
+	err := col.FindOne(ctx, bson.M{"type": "restart"}).Decode(&doc)
+	if err != nil {
+		return 0, 0, err
+	}
+	return doc.MessageID, doc.ChatID, nil
+}
+
+func (b *BotDatabase) DeleteRestartMessage(ctx context.Context) error {
+	if !b.connected {
+		return nil
+	}
+	col := b.db.Collection("restart_message")
+	_, err := col.DeleteMany(ctx, bson.M{"type": "restart"})
+	return err
+}
+
+// -----------------------------------------------------------------------------
+// User Ban Management
+// -----------------------------------------------------------------------------
+
+type BannedRecord struct {
+	UserID   int64     `bson:"user_id"`
+	Reason   string    `bson:"reason"`
+	BannedAt time.Time `bson:"banned_at"`
+}
+
+func (b *BotDatabase) BanUser(ctx context.Context, userID int64, reason string) error {
+	if !b.connected || userID == 0 {
+		return nil
+	}
+	col := b.db.Collection("banned_users")
+	_, err := col.UpdateOne(ctx,
+		bson.M{"user_id": userID},
+		bson.M{"$set": bson.M{
+			"user_id":   userID,
+			"reason":    reason,
+			"banned_at": time.Now(),
+		}},
+		options.Update().SetUpsert(true),
+	)
+	return err
+}
+
+func (b *BotDatabase) UnbanUser(ctx context.Context, userID int64) error {
+	if !b.connected || userID == 0 {
+		return nil
+	}
+	col := b.db.Collection("banned_users")
+	_, err := col.DeleteOne(ctx, bson.M{"user_id": userID})
+	return err
+}
+
+func (b *BotDatabase) IsBanned(ctx context.Context, userID int64) bool {
+	if !b.connected || userID == 0 {
+		return false
+	}
+	col := b.db.Collection("banned_users")
+	count, err := col.CountDocuments(ctx, bson.M{"user_id": userID})
+	return err == nil && count > 0
+}
+
+func (b *BotDatabase) ListBannedUsers(ctx context.Context) ([]BannedRecord, error) {
+	if !b.connected {
+		return nil, nil
+	}
+	col := b.db.Collection("banned_users")
+	cursor, err := col.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var list []BannedRecord
+	err = cursor.All(ctx, &list)
+	return list, err
+}

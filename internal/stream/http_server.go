@@ -81,7 +81,7 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", s.cfg.BindAddress, s.cfg.Port),
-		Handler:      enableCORS(mux),
+		Handler:      enableCORS(s.rateLimitMiddleware(mux)),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 0, // Streaming responses must not have a write timeout
 		IdleTimeout:  120 * time.Second,
@@ -98,6 +98,42 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *HTTPServer) rateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := s.getClientIP(r)
+		now := time.Now().Unix()
+
+		s.rateMu.Lock()
+		timestamps := s.requestLog[ip]
+		cutoff := now - 1
+		var valid []int64
+		for _, ts := range timestamps {
+			if ts >= cutoff {
+				valid = append(valid, ts)
+			}
+		}
+
+		limit := s.cfg.RateLimitBurst
+		if limit <= 0 {
+			limit = 20
+		}
+
+		if len(valid) >= limit {
+			s.requestLog[ip] = valid
+			s.rateMu.Unlock()
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
+		valid = append(valid, now)
+		s.requestLog[ip] = valid
+		s.rateMu.Unlock()
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func enableCORS(next http.Handler) http.Handler {

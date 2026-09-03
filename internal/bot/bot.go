@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"filetolink-go/internal/db"
 	"filetolink-go/internal/markup"
 	"filetolink-go/internal/pool"
+	"filetolink-go/internal/shortener"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message/entity"
@@ -26,6 +29,7 @@ type BotManager struct {
 	cfg        *config.Config
 	pool       *pool.SessionPool
 	database   *db.BotDatabase
+	shortener  *shortener.Shortener
 	client     *telegram.Client
 	api        *tg.Client
 	botUser    *tg.User
@@ -41,6 +45,7 @@ func NewBotManager(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *
 		cfg:        cfg,
 		pool:       p,
 		database:   d,
+		shortener:  shortener.NewURLShortener(cfg.ShortenerSite, cfg.ShortenerAPIKey, cfg.ShortenMediaLinks),
 		dispatcher: dispatcher,
 		uptime:     time.Now(),
 	}
@@ -79,6 +84,15 @@ func (bm *BotManager) Start(ctx context.Context) error {
 				}
 			}
 
+			// Register official bot commands with Telegram (Admin in bracket for admin tools)
+			_ = bm.registerBotCommands(runCtx)
+
+			// Notify and complete previous restart if pending
+			bm.checkAndCompleteRestart(runCtx)
+
+			// Start dyno keepalive ping loop if configured
+			go bm.startKeepalive(ctx)
+
 			errChan <- nil
 			<-runCtx.Done()
 			return runCtx.Err()
@@ -93,6 +107,83 @@ func (bm *BotManager) Start(ctx context.Context) error {
 		return err
 	case <-time.After(15 * time.Second):
 		return fmt.Errorf("timeout waiting for bot startup")
+	}
+}
+
+func (bm *BotManager) registerBotCommands(ctx context.Context) error {
+	commands := []tg.BotCommand{
+		{Command: "start", Description: "Start the bot & register user"},
+		{Command: "help", Description: "Help and command guide"},
+		{Command: "ping", Description: "Check bot latency and server status"},
+		{Command: "link", Description: "Generate streaming & download links in groups"},
+	}
+
+	if bm.cfg.Batch {
+		commands = append(commands, tg.BotCommand{Command: "batch", Description: "Process a batch of consecutive files"})
+	}
+
+	adminCommands := []tg.BotCommand{
+		{Command: "stats", Description: "(Admin) View bandwidth and traffic stats"},
+		{Command: "speedtest", Description: "(Admin) Run network speed test"},
+		{Command: "fsub", Description: "(Admin) Force-Sub settings and channels"},
+		{Command: "ban", Description: "(Admin) Ban a user from bot"},
+		{Command: "unban", Description: "(Admin) Unban a user"},
+		{Command: "auth_gc", Description: "(Admin) Authorize a group chat"},
+		{Command: "deauth_gc", Description: "(Admin) Deauthorize a group chat"},
+		{Command: "listauth_gc", Description: "(Admin) List authorized group chats"},
+		{Command: "addpaid", Description: "(Admin) Add paid subscription (e.g. 30d, 1m, 3600s)"},
+		{Command: "removepaid", Description: "(Admin) Remove paid user subscription"},
+		{Command: "listpaid", Description: "(Admin) List active paid users"},
+		{Command: "pmmode", Description: "(Admin) Toggle PM mode on or off"},
+		{Command: "restart", Description: "(Admin) Restart bot service"},
+	}
+
+	commands = append(commands, adminCommands...)
+
+	_, err := bm.api.BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
+		Scope:    &tg.BotCommandScopeDefault{},
+		LangCode: "en",
+		Commands: commands,
+	})
+	return err
+}
+
+func (bm *BotManager) checkAndCompleteRestart(ctx context.Context) {
+	if bm.database == nil {
+		return
+	}
+	msgID, chatID, err := bm.database.GetRestartMessage(ctx)
+	if err == nil && msgID > 0 && chatID != 0 {
+		peer := toInputPeer(chatID)
+		_ = bm.editMessage(ctx, peer, int(msgID), "✅ <b>Restart Successful!</b>", nil)
+		_ = bm.database.DeleteRestartMessage(ctx)
+	}
+}
+
+func (bm *BotManager) startKeepalive(ctx context.Context) {
+	if bm.cfg.FQDN == "" || strings.Contains(bm.cfg.FQDN, "localhost") {
+		return
+	}
+	interval := bm.cfg.PingInterval
+	if interval < 1*time.Minute {
+		interval = 10 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	healthURL := fmt.Sprintf("%s/health", bm.cfg.BuildBaseURL())
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			resp, err := client.Get(healthURL)
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+		}
 	}
 }
 
@@ -122,6 +213,21 @@ func (bm *BotManager) setupHandlers() {
 				QueryID: u.QueryID,
 				Message: "Closed",
 			})
+			return nil
+		}
+
+		if strings.HasPrefix(data, "fsub_rm_") {
+			chIDStr := strings.TrimPrefix(data, "fsub_rm_")
+			if chID, err := strconv.ParseInt(chIDStr, 10, 64); err == nil {
+				_ = bm.database.RemoveFSubChannel(ctx, chID)
+				peer := &tg.InputPeerUser{UserID: u.UserID}
+				_ = bm.sendFSubSettingsPanel(ctx, peer)
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+					QueryID: u.QueryID,
+					Message: "Channel removed",
+				})
+			}
+			return nil
 		}
 		return nil
 	})
@@ -149,6 +255,22 @@ func (bm *BotManager) routeMessage(ctx context.Context, msg *tg.Message) error {
 
 	if senderID == 0 && isPrivate {
 		senderID = peerID
+	}
+
+	// Banned User Check
+	if senderID != 0 && bm.database.IsBanned(ctx, senderID) {
+		peer := toInputPeer(peerID)
+		_ = bm.sendText(ctx, peer, "⛔ <b>You are banned from using this bot.</b>")
+		return nil
+	}
+
+	// Reel Channel Monitor (personal tracking)
+	if bm.cfg.ReelChannelID != 0 && peerID == pool.FormatChannelID(bm.cfg.ReelChannelID) && msg.Media != nil {
+		fileType := "video"
+		if _, ok := msg.Media.(*tg.MessageMediaPhoto); ok {
+			fileType = "photo"
+		}
+		_ = bm.database.SaveReelMedia(ctx, msg.ID, fileType)
 	}
 
 	text := strings.TrimSpace(msg.Message)
