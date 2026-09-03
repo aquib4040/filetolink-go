@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{{ file_name }} - Canon Premium Stream</title>
+    <title>{{ .file_name }} - Canon Premium Stream</title>
 
     <!-- Social Meta Tags -->
     <meta name="description" content="Premium High-Speed Video Streaming Gateway">
-    <meta property="og:title" content="{{ file_name }}">
+    <meta property="og:title" content="{{ .file_name }}">
     <meta property="og:description" content="High-Speed Cloud Media Streaming">
     <meta property="og:type" content="video.other">
     
@@ -1074,7 +1074,7 @@
                     <i class="fas fa-file-video"></i>
                 </div>
                 <div style="flex: 1;">
-                    <h1 class="file-title" id="file-name">{{ file_name }}</h1>
+                    <h1 class="file-title" id="file-name">{{ .file_name }}</h1>
                 </div>
             </div>
             <div class="meta-hub">
@@ -1121,7 +1121,7 @@
         <!-- Premium Video Player Stage -->
         <section class="player-stage" aria-label="Video Player Stage">
             <video id="player" playsinline preload="metadata" controlsList="nodownload" aria-label="Video player">
-                <source src="{{ src }}" type="video/mp4" />
+                <source src="{{ .src }}" type="video/mp4" />
                 <p>Your browser does not support HTML5 video tag. Please download the file instead.</p>
             </video>
             

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Verification - {{ file_name }}</title>
+    <title>Security Verification - {{ .file_name }}</title>
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -188,7 +188,7 @@
         <div class="file-box">
             <span class="file-icon">📦</span>
             <div>
-                <div style="font-weight: 600; font-size: 0.95rem;">{{ file_name }}</div>
+                <div style="font-weight: 600; font-size: 0.95rem;">{{ .file_name }}</div>
             </div>
         </div>
 
@@ -210,21 +210,21 @@
         </noscript>
 
         <div class="footer">
-            Powered by SecureLink &bull; Session ID: {{ challenge[:8] }}
+            Powered by SecureLink &bull; Session ID: {{ .challenge }}
         </div>
     </div>
 
     <form id="verify-form" method="GET" action="">
-        {% for k, v in query_params.items() %}
-            <input type="hidden" name="{{ k }}" value="{{ v }}">
-        {% endfor %}
-        <input type="hidden" name="challenge" value="{{ challenge }}">
+        {{ range $k, $v := .query_params }}
+            <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+        {{ end }}
+        <input type="hidden" name="challenge" value="{{ .challenge }}">
         <input type="hidden" name="nonce" id="nonce-input">
     </form>
 
     <script>
-        const challenge = "{{ challenge }}";
-        const difficulty = "{{ difficulty }}";
+        const challenge = "{{ .challenge }}";
+        const difficulty = "{{ .difficulty }}";
         const statusEl = document.getElementById('status');
         const progressEl = document.getElementById('progress');
 

@@ -15,7 +15,9 @@ func (bm *BotManager) handleHelp(ctx context.Context, chatID int64) error {
 	helpText := "📖 <b>Help Guide</b>\n\n" +
 		"• <b>Private:</b> Send any media file directly to generate links.\n" +
 		"• <b>Groups:</b> Reply to any file with <code>/link</code>.\n" +
-		"• <b>Batch:</b> Reply with <code>/link 5</code> to process 5 consecutive files."
+		"• <b>Batch:</b> Reply with <code>/link 5</code> to process 5 consecutive files.\n" +
+		"• <b>DC Info:</b> <code>/dc</code> or reply to a file/user to check Telegram Data Center.\n" +
+		"• <b>Ping:</b> <code>/ping</code> to check bot latency."
 	return bm.sendText(ctx, peer, helpText)
 }
 

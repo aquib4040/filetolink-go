@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Downloading: {{ file_name }}</title>
-    <meta http-equiv="refresh" content="0;url={{ src }}">
+    <title>Downloading: {{ .file_name }}</title>
+    <meta http-equiv="refresh" content="0;url={{ .src }}">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -216,14 +216,14 @@
 
             <div>
                 <h1 class="title">Preparing Download</h1>
-                <p style="font-size:0.9rem; color:var(--color-secondary); margin-top:6px; font-weight:500;">{{ file_name }}</p>
+                <p style="font-size:0.9rem; color:var(--color-secondary); margin-top:6px; font-weight:500;">{{ .file_name }}</p>
             </div>
             
             <p class="info-text">
                 Your download should begin automatically. If the transfer has not started, please click the button below to force trigger the download.
             </p>
 
-            <a href="{{ src }}" download="{{ file_name }}" class="button-premium" id="download-trigger">
+            <a href="{{ .src }}" download="{{ .file_name }}" class="button-premium" id="download-trigger">
                 <i class="fas fa-download"></i>
                 <span>Start Download</span>
             </a>

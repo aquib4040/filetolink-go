@@ -275,8 +275,22 @@ func (bm *BotManager) setupHandlers() {
 
 	bm.dispatcher.OnBotCallbackQuery(func(ctx context.Context, e tg.Entities, u *tg.UpdateBotCallbackQuery) error {
 		data := string(u.Data)
-		if data == "close" {
-			peer := &tg.InputPeerUser{UserID: u.UserID}
+		if data == "close" || data == "close_panel" {
+			var peer tg.InputPeerClass
+			if u.Peer != nil {
+				switch p := u.Peer.(type) {
+				case *tg.PeerUser:
+					peer = &tg.InputPeerUser{UserID: p.UserID}
+				case *tg.PeerChat:
+					peer = &tg.InputPeerChat{ChatID: p.ChatID}
+				case *tg.PeerChannel:
+					peer = &tg.InputPeerChannel{ChannelID: p.ChannelID}
+				default:
+					peer = &tg.InputPeerUser{UserID: u.UserID}
+				}
+			} else {
+				peer = &tg.InputPeerUser{UserID: u.UserID}
+			}
 			_ = bm.deleteMessages(ctx, peer, []int{u.MsgID})
 			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
 				QueryID: u.QueryID,

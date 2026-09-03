@@ -30,6 +30,9 @@ func (bm *BotManager) handleCommand(
 	case "/ping":
 		return bm.handlePing(ctx, chatID)
 
+	case "/dc":
+		return bm.handleDC(ctx, msg, senderID, chatID, args)
+
 	case "/speedtest":
 		if senderID != bm.cfg.OwnerID {
 			return bm.sendText(ctx, peer, "❌ Unauthorized.")

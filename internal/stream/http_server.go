@@ -40,8 +40,20 @@ type HTTPServer struct {
 }
 
 func NewHTTPServer(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *HTTPServer {
-	// Parse HTML templates from web/template
-	tmpl, err := template.ParseGlob("web/template/*.html")
+	// Parse HTML templates from web/template with standard fallback functions
+	tmpl, err := template.New("").Funcs(template.FuncMap{
+		"file_name": func() string { return "" },
+		"src":       func() string { return "" },
+		"slice": func(s string, start, end int) string {
+			if start >= len(s) {
+				return ""
+			}
+			if end > len(s) {
+				end = len(s)
+			}
+			return s[start:end]
+		},
+	}).ParseGlob("web/template/*.html")
 	if err != nil {
 		log.Printf("[HTTPServer] Warning: failed to parse templates from web/template: %v", err)
 	}

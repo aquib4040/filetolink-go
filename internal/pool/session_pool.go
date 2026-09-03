@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,8 +21,20 @@ import (
 )
 
 const (
-	AuthTimeout = 10 * time.Second // Safe timeout: prevents false-positive invalidation during network jitter while never hanging forever
+	AuthTimeout = 30 * time.Second // Generous timeout for MTProto DH key exchange
 )
+
+func isFatalTokenError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "401") ||
+		strings.Contains(s, "AUTH_KEY_UNREGISTERED") ||
+		strings.Contains(s, "TOKEN_INVALID") ||
+		strings.Contains(s, "USER_DEACTIVATED") ||
+		strings.Contains(s, "BOT_METHOD_INVALID")
+}
 
 // BotSession represents a single authenticated gotd MTProto bot session.
 type BotSession struct {
@@ -154,13 +167,13 @@ func (p *SessionPool) InitSession(apiID int, apiHash string, token string) (*Bot
 			}
 			return bot, nil
 		case <-time.After(AuthTimeout):
-			p.MarkTokenInvalid(token, "auth timeout on existing session")
 			return nil, fmt.Errorf("timeout waiting for session authentication")
 		}
 	}
 
 	hash := md5.Sum([]byte(token))
 	sessionDir := filepath.Join(p.baseDataPath, "session_"+hex.EncodeToString(hash[:]))
+	_ = os.MkdirAll(sessionDir, 0755)
 
 	safeSuffix := token
 	if len(safeSuffix) > 6 {
@@ -239,10 +252,8 @@ func (p *SessionPool) InitSession(apiID int, apiHash string, token string) (*Bot
 					return
 				}
 				// If authorization is revoked / token is invalid, mark immediately and do not loop
-				errStr := err.Error()
-				if strings.Contains(errStr, "401") || strings.Contains(errStr, "AUTH_KEY_UNREGISTERED") ||
-					strings.Contains(errStr, "TOKEN_INVALID") || strings.Contains(errStr, "bot auth failed") {
-					p.MarkTokenInvalid(token, errStr)
+				if isFatalTokenError(err) {
+					p.MarkTokenInvalid(token, err.Error())
 					return
 				}
 
@@ -260,12 +271,15 @@ func (p *SessionPool) InitSession(apiID int, apiHash string, token string) (*Bot
 	select {
 	case <-bot.ready:
 		if bot.readyErr != nil {
-			p.MarkTokenInvalid(token, bot.readyErr.Error())
+			if isFatalTokenError(bot.readyErr) {
+				p.MarkTokenInvalid(token, bot.readyErr.Error())
+			}
 			return nil, bot.readyErr
 		}
 		return bot, nil
 	case <-time.After(AuthTimeout):
-		p.MarkTokenInvalid(token, "auth timeout (10s exceeded)")
+		// Do NOT mark token as invalid on timeout! MTProto handshake will complete in background.
+		log.Printf("[SessionPool] Notice: Token ...%s handshake still in progress (exceeded %v), continuing in background", safeSuffix, AuthTimeout)
 		return nil, fmt.Errorf("timeout waiting for bot auth (token ...%s)", safeSuffix)
 	}
 }
@@ -392,8 +406,70 @@ func (p *SessionPool) GetNextAvailable(tokens []string, apiID int, apiHash strin
 		return best, nil
 	}
 
+	// If no candidate is currently ready, wait up to 5s on any session currently authenticating
+	for _, bot := range p.sessions {
+		if !p.IsTokenInvalid(bot.Token) {
+			p.mu.Unlock()
+			select {
+			case <-bot.ready:
+				if bot.readyErr == nil {
+					bot.lastUsed.Store(time.Now().Unix())
+					return bot, nil
+				}
+			case <-time.After(5 * time.Second):
+			}
+			p.mu.Lock()
+		}
+	}
+
+	// If no sessions exist yet, attempt on-demand initialization of the first valid token
+	if len(validTokens) > 0 {
+		p.mu.Unlock()
+		bot, err := p.InitSession(apiID, apiHash, validTokens[0])
+		if err == nil && bot != nil {
+			return bot, nil
+		}
+		p.mu.Lock()
+	}
+
 	p.mu.Unlock()
 	return nil, fmt.Errorf("no ready gotd bot sessions available in pool")
+}
+
+// WarmupTokens starts background authentication of multi-worker tokens with controlled concurrency
+func (p *SessionPool) WarmupTokens(apiID int, apiHash string, tokens []string) {
+	if len(tokens) == 0 {
+		return
+	}
+	log.Printf("[Pool] Starting background warmup for %d worker bot tokens...", len(tokens))
+
+	go func() {
+		// Limit to 3 concurrent handshakes to prevent DC connection throttling
+		sem := make(chan struct{}, 3)
+		var wg sync.WaitGroup
+
+		for _, tok := range tokens {
+			tok = strings.TrimSpace(tok)
+			if tok == "" || p.IsTokenInvalid(tok) {
+				continue
+			}
+
+			wg.Add(1)
+			go func(t string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				// Slight stagger between connection handshakes
+				time.Sleep(250 * time.Millisecond)
+
+				_, _ = p.InitSession(apiID, apiHash, t)
+			}(tok)
+		}
+
+		wg.Wait()
+		log.Printf("[Pool] Multi-token startup complete. %d active sessions in rotation.", p.ActiveSessionCount())
+	}()
 }
 
 // ActiveSessionCount returns the count of currently connected, authenticated sessions

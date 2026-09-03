@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -38,19 +37,9 @@ func main() {
 	// 3. Initialize MTProto Session Pool
 	sessPool := pool.NewSessionPool(cfg.GotdDataPath)
 
-	// 4. Pre-authenticate multi-tokens in parallel with fast timeouts
+	// 4. Pre-authenticate multi-tokens in background with rate-limiting
 	if len(cfg.MultiTokens) > 0 {
-		log.Printf("[Pool] Pre-authenticating %d multi-worker bot tokens...", len(cfg.MultiTokens))
-		var wg sync.WaitGroup
-		for _, tok := range cfg.MultiTokens {
-			wg.Add(1)
-			go func(token string) {
-				defer wg.Done()
-				_, _ = sessPool.InitSession(int(cfg.APIID), cfg.APIHash, token)
-			}(tok)
-		}
-		wg.Wait()
-		log.Printf("[Pool] Multi-token startup complete. %d active sessions in rotation.", sessPool.ActiveSessionCount())
+		sessPool.WarmupTokens(int(cfg.APIID), cfg.APIHash, cfg.MultiTokens)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
