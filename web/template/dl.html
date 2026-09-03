@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Downloading: {{ file_name }}</title>
+    <meta http-equiv="refresh" content="0;url={{ src }}">
+    
+    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/fyaz05/Resources@main/FileToLink/live.png">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-dark: #090a0f;
+            --bg-card: rgba(17, 20, 34, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.06);
+            --color-primary: #7c4dff;
+            --color-primary-glow: rgba(124, 77, 255, 0.45);
+            --color-secondary: #00e5ff;
+            --color-secondary-glow: rgba(0, 229, 255, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --font-family: 'Outfit', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes rotate-spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-card {
+            0%, 100% { border-color: rgba(124, 77, 255, 0.15); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); }
+            50% { border-color: rgba(0, 229, 255, 0.3); box-shadow: 0 15px 50px rgba(0, 229, 255, 0.1); }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background */
+        .ambient-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 50%, #121528 0%, #06070a 100%);
+        }
+
+        .ambient-glow {
+            position: absolute;
+            top: 30%;
+            left: 35%;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(124, 77, 255, 0.12) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            padding: 20px;
+            z-index: 1;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(124, 77, 255, 0.15);
+            border-radius: 24px;
+            padding: 40px 30px;
+            text-align: center;
+            animation: pulse-card 6s infinite ease-in-out;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        /* Spinner Animation */
+        .spinner-container {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner-outer {
+            width: 80px;
+            height: 80px;
+            border: 4px solid rgba(124, 77, 255, 0.1);
+            border-top: 4px solid var(--color-primary);
+            border-radius: 50%;
+            animation: rotate-spinner 1.5s linear infinite;
+        }
+
+        .spinner-inner {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 229, 255, 0.1);
+            border-bottom: 3px solid var(--color-secondary);
+            border-radius: 50%;
+            animation: rotate-spinner 1s linear infinite reverse;
+        }
+
+        .spinner-icon {
+            position: absolute;
+            font-size: 1.5rem;
+            color: var(--color-secondary);
+            text-shadow: 0 0 10px var(--color-secondary-glow);
+        }
+
+        .title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 30%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .info-text {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .button-premium {
+            background: linear-gradient(135deg, var(--color-primary) 0%, #6200ea 100%);
+            border: none;
+            outline: none;
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-family: var(--font-family);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
+            text-decoration: none;
+            margin-top: 8px;
+        }
+
+        .button-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--color-primary-glow);
+            filter: brightness(1.1);
+        }
+
+        .button-premium:active {
+            transform: translateY(0);
+        }
+
+        .footer-logo {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .footer-logo i {
+            color: var(--color-primary);
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg" aria-hidden="true">
+        <div class="ambient-glow"></div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <!-- Animated Loading Ring -->
+            <div class="spinner-container" aria-hidden="true">
+                <div class="spinner-outer"></div>
+                <div class="spinner-inner"></div>
+                <i class="fas fa-cloud-arrow-down spinner-icon"></i>
+            </div>
+
+            <div>
+                <h1 class="title">Preparing Download</h1>
+                <p style="font-size:0.9rem; color:var(--color-secondary); margin-top:6px; font-weight:500;">{{ file_name }}</p>
+            </div>
+            
+            <p class="info-text">
+                Your download should begin automatically. If the transfer has not started, please click the button below to force trigger the download.
+            </p>
+
+            <a href="{{ src }}" download="{{ file_name }}" class="button-premium" id="download-trigger">
+                <i class="fas fa-download"></i>
+                <span>Start Download</span>
+            </a>
+
+            <div class="footer-logo">
+                <i class="fas fa-bolt"></i> Canon Stream Pro
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fallback redirection trigger in case meta refresh fails or is blocked
+        document.addEventListener('DOMContentLoaded', () => {
+            const dlLink = document.getElementById('download-trigger');
+            setTimeout(() => {
+                try {
+                    dlLink.click();
+                } catch(e) {
+                    console.log('Auto-trigger blocked, user must click manually.');
+                }
+            }, 300);
+        });
+    </script>
+</body>
+</html>

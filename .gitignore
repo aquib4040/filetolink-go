@@ -1,0 +1,9 @@
+FileToLink/
+filestore/
+ThunderGo/
+.env
+data/
+*.exe
+*.log
+bin/
+tmp/
