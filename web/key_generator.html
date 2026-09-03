@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cryptographic Key & Secret Generator | FileToLink Go</title>
+    <title>Key Generator | FileToLink Go</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #0b0f19;
-            --card-bg: rgba(17, 24, 39, 0.85);
+            --card-bg: rgba(17, 24, 39, 0.9);
             --primary: #10b981;
             --primary-hover: #059669;
-            --accent-blue: #3b82f6;
-            --accent-purple: #8b5cf6;
             --text-color: #f8fafc;
             --muted-text: #94a3b8;
             --border-color: rgba(255, 255, 255, 0.08);
@@ -33,188 +31,148 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 32px 20px;
-            position: relative;
-            overflow-x: hidden;
+            padding: 24px;
         }
-
-        .glow {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0) 70%);
-            filter: blur(70px);
-            z-index: 1;
-            pointer-events: none;
-        }
-        .glow-1 { top: -120px; left: -120px; }
-        .glow-2 { bottom: -120px; right: -120px; background: radial-gradient(circle, rgba(139, 92, 246, 0.14) 0%, rgba(59, 130, 246, 0) 70%); }
 
         .card {
-            position: relative;
-            z-index: 10;
             background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
-            border-radius: 24px;
-            padding: 40px 36px;
+            border-radius: 20px;
+            padding: 32px;
             width: 100%;
-            max-width: 640px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: column;
-            gap: 28px;
+            gap: 20px;
         }
 
         .header h1 {
-            font-size: 1.6rem;
+            font-size: 1.4rem;
             font-weight: 700;
-            margin-bottom: 8px;
-            background: linear-gradient(to right, #ffffff, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #ffffff;
+            margin-bottom: 4px;
         }
 
         .header p {
             color: var(--muted-text);
-            font-size: 0.92rem;
-            line-height: 1.5;
+            font-size: 0.88rem;
         }
 
-        .section-title {
-            font-size: 0.82rem;
+        .section-label {
+            font-size: 0.8rem;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             color: var(--muted-text);
             font-weight: 700;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            margin-bottom: 6px;
         }
 
-        .section-title span {
-            color: #34d399;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            text-transform: none;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 8px;
-            background: rgba(15, 23, 42, 0.6);
-            padding: 4px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 12px;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--muted-text);
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .tab-btn.active {
-            background: var(--primary);
-            color: #0b0f19;
-        }
-
-        .key-container {
-            display: flex;
-            align-items: center;
-            background: #090d16;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 12px 16px;
-            position: relative;
-        }
-
-        .key-display {
-            flex-grow: 1;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
-            color: #34d399;
-            word-break: break-all;
-            user-select: all;
-            margin-right: 12px;
-        }
-
-        .secret-display {
-            color: #a78bfa;
-        }
-
-        .btn-copy {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-        }
-
-        .btn-copy:hover {
-            background: rgba(255, 255, 255, 0.16);
-        }
-
-        .btn-generate {
-            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-            color: #0b0f19;
-            border: none;
-            padding: 14px 20px;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
-            width: 100%;
-        }
-
-        .btn-generate:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
-        }
-
-        .env-snippet {
-            background: #090d16;
-            border: 1px dashed rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            padding: 14px 16px;
+        .key-row {
             display: flex;
             flex-direction: column;
             gap: 6px;
+            margin-bottom: 12px;
         }
 
-        .env-snippet-header {
+        .key-title {
+            font-size: 0.82rem;
+            color: #94a3b8;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            font-size: 0.78rem;
-            color: var(--muted-text);
-            margin-bottom: 4px;
         }
 
-        .env-snippet pre {
+        .key-box {
+            display: flex;
+            align-items: center;
+            background: #090d16;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 14px;
+            gap: 10px;
+        }
+
+        .key-value {
+            flex-grow: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #34d399;
+            word-break: break-all;
+            user-select: all;
+        }
+
+        .key-value.purple {
+            color: #a78bfa;
+        }
+
+        .btn-copy-small {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-copy-small:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        .env-box {
+            background: #060911;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .env-box pre {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.82rem;
             color: #e2e8f0;
             white-space: pre-wrap;
             word-break: break-all;
+        }
+
+        .btn-env-copy {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: #0b0f19;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn-env-copy:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-refresh {
+            background: transparent;
+            color: var(--muted-text);
+            border: 1px solid var(--border-color);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-refresh:hover {
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.2);
         }
 
         .toast {
@@ -224,84 +182,86 @@
             transform: translateX(-50%);
             background: var(--primary);
             color: #0b0f19;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 0.9rem;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
             font-weight: 700;
             box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 100;
             opacity: 0;
         }
 
         .toast.show {
-            bottom: 32px;
+            bottom: 24px;
             opacity: 1;
         }
     </style>
 </head>
 <body>
-    <div class="glow glow-1"></div>
-    <div class="glow glow-2"></div>
-
     <div class="card">
         <div class="header">
-            <h1>Cryptographic Key Generator</h1>
-            <p>Generate high-entropy keys and signing secrets for <b>FileToLink Go</b>.</p>
+            <h1>⚡ Key & Secret Generator</h1>
+            <p>Generate keys for <code>ENCRYPTION_KEY</code> and <code>BOT_SIGNING_SECRET</code> in FileToLink Go.</p>
         </div>
 
-        <!-- 1. ENCRYPTION_KEY -->
         <div>
-            <div class="section-title">
-                1. Payload Encryption Key
-                <span>ENCRYPTION_KEY</span>
+            <div class="section-label">1. Encryption Key Options (32-byte AES)</div>
+            
+            <!-- Option 1: Base64 -->
+            <div class="key-row">
+                <div class="key-title">
+                    <span>Base64 (32-byte) — <b>Recommended</b></span>
+                </div>
+                <div class="key-box">
+                    <span class="key-value" id="k-b64">Generating...</span>
+                    <button class="btn-copy-small" onclick="copyText('k-b64', 'Base64 key copied!')">Copy</button>
+                </div>
             </div>
-            <div class="tabs">
-                <button class="tab-btn active" id="tab-b64" onclick="setKeyMode('b64')">Base64 (32-byte)</button>
-                <button class="tab-btn" id="tab-pass" onclick="setKeyMode('pass')">32-Char ASCII</button>
-                <button class="tab-btn" id="tab-hex" onclick="setKeyMode('hex')">Hex (64 chars)</button>
+
+            <!-- Option 2: 32-char ASCII -->
+            <div class="key-row">
+                <div class="key-title">
+                    <span>32-Char Passphrase</span>
+                </div>
+                <div class="key-box">
+                    <span class="key-value" id="k-pass">Generating...</span>
+                    <button class="btn-copy-small" onclick="copyText('k-pass', 'Passphrase copied!')">Copy</button>
+                </div>
             </div>
-            <div class="key-container">
-                <span class="key-display" id="enc-field">Generating...</span>
-                <button class="btn-copy" onclick="copyText('enc-field', 'Encryption key copied!')">Copy</button>
+
+            <!-- Option 3: Hex -->
+            <div class="key-row">
+                <div class="key-title">
+                    <span>Hex (64-character)</span>
+                </div>
+                <div class="key-box">
+                    <span class="key-value" id="k-hex">Generating...</span>
+                    <button class="btn-copy-small" onclick="copyText('k-hex', 'Hex key copied!')">Copy</button>
+                </div>
             </div>
         </div>
 
-        <!-- 2. BOT_SIGNING_SECRET -->
         <div>
-            <div class="section-title">
-                2. Bot Signing & Integrity Secret
-                <span style="color: #a78bfa;">BOT_SIGNING_SECRET</span>
-            </div>
-            <div class="tabs">
-                <button class="tab-btn active" id="tab-sec-alpha" onclick="setSecretMode('alpha')">Hex (64 chars)</button>
-                <button class="tab-btn" id="tab-sec-url" onclick="setSecretMode('url')">URL-Safe (48 chars)</button>
-                <button class="tab-btn" id="tab-sec-pass" onclick="setSecretMode('pass')">Alphanumeric (32 chars)</button>
-            </div>
-            <div class="key-container">
-                <span class="key-display secret-display" id="secret-field">Generating...</span>
-                <button class="btn-copy" onclick="copyText('secret-field', 'Signing secret copied!')">Copy</button>
+            <div class="section-label">2. Bot Signing Key (HMAC / Integrity)</div>
+            <div class="key-box">
+                <span class="key-value purple" id="k-secret">Generating...</span>
+                <button class="btn-copy-small" onclick="copyText('k-secret', 'Signing secret copied!')">Copy</button>
             </div>
         </div>
 
-        <!-- 3. Combined .env Block -->
-        <div class="env-snippet">
-            <div class="env-snippet-header">
-                <span>📋 Ready-to-use .env configuration</span>
-                <button class="btn-copy" style="padding: 4px 10px; font-size: 0.75rem;" onclick="copyEnvSnippet()">Copy Both</button>
-            </div>
-            <pre id="env-preview"># Loading...</pre>
+        <!-- 3. Direct .env Block & One-Click Copy -->
+        <div class="env-box">
+            <pre id="env-snippet"># Loading...</pre>
+            <button class="btn-env-copy" onclick="copyEnv()">📋 Copy .env Variables Directly</button>
         </div>
 
-        <button class="btn-generate" onclick="generateAll()">⚡ Generate New Keys</button>
+        <button class="btn-refresh" onclick="generateAll()">🔄 Generate New Values</button>
     </div>
 
     <div class="toast" id="toast">Copied to clipboard!</div>
 
     <script>
-        let currentKeyMode = 'b64';
-        let currentSecretMode = 'alpha';
-
         function getRandomBytes(length) {
             const bytes = new Uint8Array(length);
             window.crypto.getRandomValues(bytes);
@@ -320,86 +280,54 @@
             return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
         }
 
-        function generateCustomString(length, charset) {
+        function generatePassphrase(length) {
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}";
             const bytes = getRandomBytes(length);
-            let result = '';
+            let res = "";
             for (let i = 0; i < length; i++) {
-                result += charset[bytes[i] % charset.length];
+                res += charset[bytes[i] % charset.length];
             }
-            return result;
+            return res;
         }
 
-        function setKeyMode(mode) {
-            currentKeyMode = mode;
-            ['b64', 'pass', 'hex'].forEach(m => {
-                document.getElementById('tab-' + m).classList.toggle('active', m === mode);
-            });
-            updateKeys();
-        }
+        let selectedEncKey = "";
+        let selectedSecret = "";
 
-        function setSecretMode(mode) {
-            currentSecretMode = mode;
-            ['alpha', 'url', 'pass'].forEach(m => {
-                document.getElementById('tab-sec-' + m).classList.toggle('active', m === mode);
-            });
-            updateKeys();
-        }
-
-        function updateKeys() {
-            // 1. Generate ENCRYPTION_KEY
-            let encKey = '';
+        function generateAll() {
             const raw32 = getRandomBytes(32);
-            if (currentKeyMode === 'b64') {
-                encKey = bytesToBase64(raw32);
-            } else if (currentKeyMode === 'hex') {
-                encKey = bytesToHex(raw32);
-            } else {
-                encKey = generateCustomString(32, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}");
-            }
-            document.getElementById('enc-field').textContent = encKey;
+            const b64 = bytesToBase64(raw32);
+            const pass = generatePassphrase(32);
+            const hex = bytesToHex(raw32);
+            const secret = bytesToHex(getRandomBytes(32));
 
-            // 2. Generate BOT_SIGNING_SECRET
-            let secret = '';
-            if (currentSecretMode === 'alpha') {
-                secret = bytesToHex(getRandomBytes(32)); // 64 hex characters
-            } else if (currentSecretMode === 'url') {
-                secret = generateCustomString(48, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_~");
-            } else {
-                secret = generateCustomString(32, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
-            }
-            document.getElementById('secret-field').textContent = secret;
+            document.getElementById('k-b64').textContent = b64;
+            document.getElementById('k-pass').textContent = pass;
+            document.getElementById('k-hex').textContent = hex;
+            document.getElementById('k-secret').textContent = secret;
 
-            // 3. Update combined snippet
-            document.getElementById('env-preview').textContent = 
-`ENCRYPTION_KEY=${encKey}
+            selectedEncKey = b64;
+            selectedSecret = secret;
+
+            document.getElementById('env-snippet').textContent = 
+`ENCRYPTION_KEY=${b64}
 BOT_SIGNING_SECRET=${secret}`;
         }
 
-        function generateAll() {
-            updateKeys();
-        }
-
-        function showToast(message) {
+        function showToast(msg) {
             const toast = document.getElementById('toast');
-            toast.textContent = message;
+            toast.textContent = msg;
             toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 2000);
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
-        function copyText(elementId, msg) {
+        function copyText(elementId, toastMsg) {
             const text = document.getElementById(elementId).textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                showToast(msg);
-            });
+            navigator.clipboard.writeText(text).then(() => showToast(toastMsg));
         }
 
-        function copyEnvSnippet() {
-            const text = document.getElementById('env-preview').textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('.env snippet copied!');
-            });
+        function copyEnv() {
+            const text = document.getElementById('env-snippet').textContent;
+            navigator.clipboard.writeText(text).then(() => showToast('✅ .env variables copied directly!'));
         }
 
         window.onload = generateAll;

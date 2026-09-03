@@ -2,18 +2,12 @@ package bot
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"filetolink-go/internal/crypto"
-	"filetolink-go/internal/db"
 	"filetolink-go/internal/markup"
-	"filetolink-go/internal/pool"
 
 	"github.com/gotd/td/tg"
 )
@@ -165,23 +159,8 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		})
 	}
 
-	rows = append(rows, []tg.KeyboardButtonClass{
-		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
-	})
-
 	_ = bm.editMessage(ctx, peer, statusMsgID, text, markup.NewInlineMarkup(rows))
 	return nil
-}
-
-func isStreamable(fileName string) bool {
-	ext := strings.ToLower(filepath.Ext(fileName))
-	switch ext {
-	case ".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".wmv", ".m4v", ".ts",
-		".mp3", ".m4a", ".flac", ".wav", ".ogg", ".opus", ".aac":
-		return true
-	default:
-		return false
-	}
 }
 
 func (bm *BotManager) isAllowedInPM(ctx context.Context, userID int64) bool {
@@ -192,86 +171,4 @@ func (bm *BotManager) isAllowedInPM(ctx context.Context, userID int64) bool {
 		return true
 	}
 	return bm.GetSettings().PMMode
-}
-
-func (bm *BotManager) sendStartInDMPrompt(ctx context.Context, peer tg.InputPeerClass, replyToID int) {
-	botUsername := "bot"
-	if bm.botUser != nil && bm.botUser.Username != "" {
-		botUsername = bm.botUser.Username
-	}
-	startURL := fmt.Sprintf("https://t.me/%s?start=start", botUsername)
-
-	var rows [][]tg.KeyboardButtonClass
-	rows = append(rows, []tg.KeyboardButtonClass{
-		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Start in DM"), startURL, markup.StyleGreen),
-	})
-
-	_, _ = bm.sendTextWithMarkup(ctx, peer,
-		"⚠️ <b>Please start the bot in private first to use it.</b>",
-		markup.NewInlineMarkup(rows))
-}
-
-func (bm *BotManager) checkFSub(ctx context.Context, userID int64, peer tg.InputPeerClass) bool {
-	channels, err := bm.database.ListFSubChannels(ctx)
-	if err != nil || len(channels) == 0 {
-		return true
-	}
-
-	var missing []db.FSubChannel
-	for _, ch := range channels {
-		// Check member status
-		res, err := bm.api.ChannelsGetParticipant(ctx, &tg.ChannelsGetParticipantRequest{
-			Channel:     &tg.InputChannel{ChannelID: pool.RawChannelID(ch.ChannelID)},
-			Participant: &tg.InputPeerUser{UserID: userID},
-		})
-		if err != nil || res == nil {
-			missing = append(missing, ch)
-		}
-	}
-
-	if len(missing) > 0 {
-		var rows [][]tg.KeyboardButtonClass
-		for _, m := range missing {
-			rows = append(rows, []tg.KeyboardButtonClass{
-				markup.NewURLButtonWithStyle(markup.ToSmallCaps("Join Channel"), m.InviteURL, markup.StyleGreen),
-			})
-		}
-		_, _ = bm.sendTextWithMarkup(ctx, peer,
-			"🔒 <b>You must join our official channel(s) to use this bot!</b>",
-			markup.NewInlineMarkup(rows))
-		return false
-	}
-
-	return true
-}
-
-func extractMediaInfo(msg *tg.Message) (fileName string, fileSize int64, fileHash string) {
-	fileName = "download.bin"
-	fileSize = 0
-
-	if doc, ok := msg.Media.(*tg.MessageMediaDocument); ok {
-		if d, ok := doc.Document.(*tg.Document); ok {
-			fileSize = d.Size
-			for _, attr := range d.Attributes {
-				if fn, ok := attr.(*tg.DocumentAttributeFilename); ok {
-					fileName = fn.FileName
-					break
-				}
-			}
-			h := sha256.Sum256([]byte(fmt.Sprintf("%d:%d", d.ID, d.AccessHash)))
-			fileHash = hex.EncodeToString(h[:])[:6]
-			return
-		}
-	}
-
-	h := sha256.Sum256([]byte(fmt.Sprintf("%d", msg.ID)))
-	fileHash = hex.EncodeToString(h[:])[:6]
-	return
-}
-
-func htmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	return s
 }

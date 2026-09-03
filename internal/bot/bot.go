@@ -389,13 +389,7 @@ func (bm *BotManager) routeMessage(ctx context.Context, msg *tg.Message) error {
 	}
 
 	// Reel Channel Monitor (personal tracking)
-	if bm.cfg.ReelChannelID != 0 && peerID == pool.FormatChannelID(bm.cfg.ReelChannelID) && msg.Media != nil {
-		fileType := "video"
-		if _, ok := msg.Media.(*tg.MessageMediaPhoto); ok {
-			fileType = "photo"
-		}
-		_ = bm.database.SaveReelMedia(ctx, msg.ID, fileType)
-	}
+	bm.checkReelMedia(ctx, msg, peerID)
 
 	text := strings.TrimSpace(msg.Message)
 
@@ -494,49 +488,12 @@ func (bm *BotManager) deleteMessages(ctx context.Context, peer tg.InputPeerClass
 	return err
 }
 
-func extractMsgID(updates tg.UpdatesClass) int {
-	switch u := updates.(type) {
-	case *tg.Updates:
-		for _, up := range u.Updates {
-			if m, ok := up.(*tg.UpdateNewMessage); ok {
-				if msg, ok := m.Message.(*tg.Message); ok {
-					return msg.ID
-				}
-			}
-			if m, ok := up.(*tg.UpdateNewChannelMessage); ok {
-				if msg, ok := m.Message.(*tg.Message); ok {
-					return msg.ID
-				}
-			}
-		}
-	case *tg.UpdateShortSentMessage:
-		return u.ID
-	}
-	return 0
-}
-
 func toInputPeer(chatID int64) tg.InputPeerClass {
 	if chatID > 0 {
 		return &tg.InputPeerUser{UserID: chatID}
 	}
 	raw := pool.RawChannelID(chatID)
 	return &tg.InputPeerChannel{ChannelID: raw}
-}
-
-func humanBytes(bytes int64) string {
-	if bytes <= 0 {
-		return "0 B"
-	}
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // Suppress unused imports
