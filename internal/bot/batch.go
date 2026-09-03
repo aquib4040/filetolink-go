@@ -113,6 +113,32 @@ func (bm *BotManager) handleLinkCommand(
 	}
 
 	streamable := isStreamable(fileName)
+
+	// Reply to stored media in BIN_CHANNEL with source user and links (FileToLink behavior)
+	sourceName := fmt.Sprintf("User %d", senderID)
+	var binLogText string
+	if streamable {
+		binLogText = fmt.Sprintf("<blockquote>👤 <b>Source:</b> <a href=\"tg://user?id=%d\">%s</a>\n"+
+			"🆔 <b>ID:</b> <code>%d</code></blockquote>\n\n"+
+			"🚀 <b>Download:</b> <code>%s</code>\n\n"+
+			"🖥️ <b>Stream:</b> <code>%s</code>",
+			senderID, sourceName, senderID, downloadURL, streamURL)
+	} else {
+		binLogText = fmt.Sprintf("<blockquote>👤 <b>Source:</b> <a href=\"tg://user?id=%d\">%s</a>\n"+
+			"🆔 <b>ID:</b> <code>%d</code></blockquote>\n\n"+
+			"🚀 <b>Download:</b> <code>%s</code>",
+			senderID, sourceName, senderID, downloadURL)
+	}
+	plainBinText, binEntities := parseHTML(binLogText)
+	_, _ = bm.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
+		Peer:      binPeer,
+		ReplyTo:   &tg.InputReplyToMessage{ReplyToMsgID: fwdMsgID},
+		Message:   plainBinText,
+		Entities:  binEntities,
+		NoWebpage: true,
+		RandomID:  getRandomID(),
+	})
+
 	var text string
 	var rows [][]tg.KeyboardButtonClass
 
