@@ -28,9 +28,17 @@ func (bm *BotManager) handleStart(ctx context.Context, senderID, chatID int64, i
 		return bm.sendText(ctx, peer, "❌ <b>Invalid or expired verification token.</b> Please request a new verification link.")
 	}
 
+	return bm.sendStartPanel(ctx, peer, 0)
+}
+
+func (bm *BotManager) sendStartPanel(ctx context.Context, peer tg.InputPeerClass, msgID int) error {
 	var rows [][]tg.KeyboardButtonClass
 	rows = append(rows, []tg.KeyboardButtonClass{
-		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Updates Channel"), "https://t.me/Anime_Canon", markup.StyleGreen),
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("About"), "about_command", markup.StyleBlue),
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Help"), "help_command", markup.StyleGreen),
+	})
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Updates Channel"), "https://t.me/Canon_Bots", markup.StyleGreen),
 		markup.NewURLButtonWithStyle(markup.ToSmallCaps("Developer"), "https://t.me/ExE_AQUIB", markup.StyleBlue),
 	})
 	rows = append(rows, []tg.KeyboardButtonClass{
@@ -46,7 +54,10 @@ func (bm *BotManager) handleStart(ctx context.Context, senderID, chatID int64, i
 		"• Pure AES-256 stateless link encryption (zero DB load on playback)\n" +
 		"• Multi-bot worker rotation for maximum bandwidth distribution"
 
-	_, err := bm.sendTextWithMarkup(ctx, peer, welcomeText, markup.NewInlineMarkup(rows))
+	if msgID > 0 {
+		return bm.editMessage(ctx, peer, msgID, welcomeText, markup.NewInlineMarkup(rows))
+	}
+	_, err := bm.replyWithReel(ctx, peer, 0, welcomeText, markup.NewInlineMarkup(rows))
 	return err
 }
 

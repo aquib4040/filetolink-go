@@ -20,7 +20,7 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		if !bm.isAllowedInPM(ctx, senderID) {
 			var rows [][]tg.KeyboardButtonClass
 			rows = append(rows, []tg.KeyboardButtonClass{
-				markup.NewURLButtonWithStyle(markup.ToSmallCaps("Join Community"), "https://t.me/Anime_Canon", markup.StyleGreen),
+				markup.NewURLButtonWithStyle(markup.ToSmallCaps("Join Community"), "https://t.me/Canon_Bots", markup.StyleGreen),
 			})
 			return bm.sendText(ctx, peer, "ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴀ ᴘʀᴇᴍɪᴜᴍ ᴜsᴇʀ.\nʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴍᴇ ɪɴ ᴀɴ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ɢʀᴏᴜᴘ!")
 		}
@@ -78,6 +78,7 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	}
 
 	// 5. Forward media to BIN_CHANNEL
+	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
 	binPeer := toInputPeer(bm.cfg.BinChannel)
 	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
 		FromPeer: peer,

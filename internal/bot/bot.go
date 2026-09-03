@@ -151,6 +151,14 @@ func (bm *BotManager) Start(ctx context.Context) error {
 				}
 			}
 
+			// Pre-resolve storage and reel channels so AccessHashes are immediately cached
+			if bm.cfg.BinChannel != 0 {
+				_ = bm.ResolveChannelAccessHash(runCtx, bm.cfg.BinChannel)
+			}
+			if bm.cfg.ReelChannelID != 0 {
+				_ = bm.ResolveChannelAccessHash(runCtx, bm.cfg.ReelChannelID)
+			}
+
 			// Register official bot commands with Telegram (Admin in bracket for admin tools)
 			_ = bm.registerBotCommands(runCtx)
 
@@ -159,6 +167,9 @@ func (bm *BotManager) Start(ctx context.Context) error {
 
 			// Start dyno keepalive ping loop if configured
 			go bm.startKeepalive(ctx)
+
+			// Sync Reel Channel history for reply reels
+			go bm.syncReelChannelHistory(runCtx)
 
 			errChan <- nil
 			<-runCtx.Done()
@@ -182,6 +193,7 @@ func (bm *BotManager) registerBotCommands(ctx context.Context) error {
 		{Command: "start", Description: "Start the bot & register user"},
 		{Command: "help", Description: "Help and command guide"},
 		{Command: "ping", Description: "Check bot latency and server status"},
+		{Command: "dc", Description: "Retrieve data center (DC) info of user or file"},
 		{Command: "link", Description: "Generate streaming & download links in groups"},
 	}
 
@@ -266,6 +278,9 @@ func (bm *BotManager) setupHandlers() {
 	})
 
 	bm.dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
+		for _, ch := range e.Channels {
+			cacheChannelAccessHash(ch.ID, ch.AccessHash)
+		}
 		msg, ok := u.Message.(*tg.Message)
 		if !ok || msg.Out {
 			return nil
@@ -275,26 +290,51 @@ func (bm *BotManager) setupHandlers() {
 
 	bm.dispatcher.OnBotCallbackQuery(func(ctx context.Context, e tg.Entities, u *tg.UpdateBotCallbackQuery) error {
 		data := string(u.Data)
-		if data == "close" || data == "close_panel" {
-			var peer tg.InputPeerClass
-			if u.Peer != nil {
-				switch p := u.Peer.(type) {
-				case *tg.PeerUser:
-					peer = &tg.InputPeerUser{UserID: p.UserID}
-				case *tg.PeerChat:
-					peer = &tg.InputPeerChat{ChatID: p.ChatID}
-				case *tg.PeerChannel:
-					peer = &tg.InputPeerChannel{ChannelID: p.ChannelID}
-				default:
-					peer = &tg.InputPeerUser{UserID: u.UserID}
-				}
-			} else {
+		var peer tg.InputPeerClass
+		if u.Peer != nil {
+			switch p := u.Peer.(type) {
+			case *tg.PeerUser:
+				peer = &tg.InputPeerUser{UserID: p.UserID}
+			case *tg.PeerChat:
+				peer = &tg.InputPeerChat{ChatID: p.ChatID}
+			case *tg.PeerChannel:
+				peer = toInputPeer(p.ChannelID)
+			default:
 				peer = &tg.InputPeerUser{UserID: u.UserID}
 			}
+		} else {
+			peer = &tg.InputPeerUser{UserID: u.UserID}
+		}
+
+		if data == "close" || data == "close_panel" {
 			_ = bm.deleteMessages(ctx, peer, []int{u.MsgID})
 			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
 				QueryID: u.QueryID,
 				Message: "Closed",
+			})
+			return nil
+		}
+
+		if data == "about_command" {
+			_ = bm.sendAboutPanel(ctx, peer, u.MsgID)
+			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID: u.QueryID,
+			})
+			return nil
+		}
+
+		if data == "help_command" {
+			_ = bm.sendHelpPanel(ctx, peer, u.MsgID)
+			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID: u.QueryID,
+			})
+			return nil
+		}
+
+		if data == "start_back" {
+			_ = bm.sendStartPanel(ctx, peer, u.MsgID)
+			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID: u.QueryID,
 			})
 			return nil
 		}
@@ -450,45 +490,121 @@ func getRandomID() int64 {
 	return n.Int64()
 }
 
+const maxMessageLength = 4096
+
+// splitText splits a text into chunks of at most limit runes, preferring newlines and spaces.
+func splitText(text string, limit int) []string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return []string{text}
+	}
+
+	var chunks []string
+	for len(runes) > 0 {
+		if len(runes) <= limit {
+			chunks = append(chunks, string(runes))
+			break
+		}
+
+		cut := limit
+		newlineIdx := -1
+		spaceIdx := -1
+		for i := limit - 1; i >= limit/2; i-- {
+			if runes[i] == '\n' {
+				newlineIdx = i + 1
+				break
+			}
+			if runes[i] == ' ' && spaceIdx == -1 {
+				spaceIdx = i + 1
+			}
+		}
+
+		if newlineIdx != -1 {
+			cut = newlineIdx
+		} else if spaceIdx != -1 {
+			cut = spaceIdx
+		}
+
+		chunks = append(chunks, string(runes[:cut]))
+		runes = runes[cut:]
+	}
+	return chunks
+}
+
 func (bm *BotManager) sendText(ctx context.Context, peer tg.InputPeerClass, text string) error {
-	plainText, entities := parseHTML(text)
-	_, err := bm.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
-		Peer:      peer,
-		Message:   plainText,
-		Entities:  entities,
-		NoWebpage: true,
-		RandomID:  getRandomID(),
-	})
+	_, err := bm.sendTextWithMarkup(ctx, peer, text, nil)
 	return err
 }
 
 func (bm *BotManager) sendTextWithMarkup(ctx context.Context, peer tg.InputPeerClass, text string, markup tg.ReplyMarkupClass) (int, error) {
-	plainText, entities := parseHTML(text)
-	updates, err := bm.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
-		Peer:        peer,
-		Message:     plainText,
-		Entities:    entities,
-		ReplyMarkup: markup,
-		NoWebpage:   true,
-		RandomID:    getRandomID(),
-	})
-	if err != nil {
-		return 0, err
+	chunks := splitText(text, maxMessageLength)
+	var lastMsgID int
+
+	for i, chunk := range chunks {
+		isLast := (i == len(chunks)-1)
+		var chunkMarkup tg.ReplyMarkupClass
+		if isLast {
+			chunkMarkup = markup
+		}
+
+		plainText, entities := parseHTML(chunk)
+		updates, err := bm.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
+			Peer:        peer,
+			Message:     plainText,
+			Entities:    entities,
+			ReplyMarkup: chunkMarkup,
+			NoWebpage:   true,
+			RandomID:    getRandomID(),
+		})
+		if err != nil {
+			return 0, err
+		}
+		lastMsgID = extractMsgID(updates)
 	}
-	return extractMsgID(updates), nil
+
+	return lastMsgID, nil
 }
 
 func (bm *BotManager) editMessage(ctx context.Context, peer tg.InputPeerClass, msgID int, text string, markup tg.ReplyMarkupClass) error {
-	plainText, entities := parseHTML(text)
+	chunks := splitText(text, maxMessageLength)
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	// Edit first chunk into the target message
+	firstChunk := chunks[0]
+	var firstMarkup tg.ReplyMarkupClass
+	if len(chunks) == 1 {
+		firstMarkup = markup
+	}
+
+	plainText, entities := parseHTML(firstChunk)
 	_, err := bm.api.MessagesEditMessage(ctx, &tg.MessagesEditMessageRequest{
 		Peer:        peer,
 		ID:          msgID,
 		Message:     plainText,
 		Entities:    entities,
-		ReplyMarkup: markup,
+		ReplyMarkup: firstMarkup,
 		NoWebpage:   true,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Send remaining chunks as new messages if text was split
+	for i := 1; i < len(chunks); i++ {
+		isLast := (i == len(chunks)-1)
+		var chunkMarkup tg.ReplyMarkupClass
+		if isLast {
+			chunkMarkup = markup
+		}
+		_, err = bm.sendTextWithMarkup(ctx, peer, chunks[i], chunkMarkup)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (bm *BotManager) deleteMessages(ctx context.Context, peer tg.InputPeerClass, msgIDs []int) error {
@@ -508,12 +624,82 @@ func (bm *BotManager) deleteMessages(ctx context.Context, peer tg.InputPeerClass
 	return err
 }
 
+var (
+	channelHashesMu sync.RWMutex
+	channelHashes   = make(map[int64]int64)
+)
+
+func cacheChannelAccessHash(rawID, hash int64) {
+	if rawID == 0 || hash == 0 {
+		return
+	}
+	channelHashesMu.Lock()
+	channelHashes[rawID] = hash
+	channelHashesMu.Unlock()
+}
+
+func getCachedChannelAccessHash(rawID int64) int64 {
+	channelHashesMu.RLock()
+	defer channelHashesMu.RUnlock()
+	return channelHashes[rawID]
+}
+
 func toInputPeer(chatID int64) tg.InputPeerClass {
 	if chatID > 0 {
 		return &tg.InputPeerUser{UserID: chatID}
 	}
 	raw := pool.RawChannelID(chatID)
-	return &tg.InputPeerChannel{ChannelID: raw}
+	return &tg.InputPeerChannel{ChannelID: raw, AccessHash: getCachedChannelAccessHash(raw)}
+}
+
+func toInputChannel(chatID int64) tg.InputChannelClass {
+	raw := pool.RawChannelID(chatID)
+	return &tg.InputChannel{ChannelID: raw, AccessHash: getCachedChannelAccessHash(raw)}
+}
+
+func (bm *BotManager) ResolveChannelAccessHash(ctx context.Context, chatID int64) int64 {
+	raw := pool.RawChannelID(chatID)
+	if hash := getCachedChannelAccessHash(raw); hash != 0 {
+		return hash
+	}
+	if bm.api == nil {
+		return 0
+	}
+
+	chats, err := bm.api.ChannelsGetChannels(ctx, []tg.InputChannelClass{
+		&tg.InputChannel{
+			ChannelID:  raw,
+			AccessHash: 0,
+		},
+	})
+	if err != nil {
+		log.Printf("[BotManager] Warning: ChannelsGetChannels failed for channel %d: %v", raw, err)
+		return 0
+	}
+
+	var accessHash int64
+	switch c := chats.(type) {
+	case *tg.MessagesChats:
+		for _, chat := range c.Chats {
+			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw {
+				accessHash = ch.AccessHash
+				break
+			}
+		}
+	case *tg.MessagesChatsSlice:
+		for _, chat := range c.Chats {
+			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw {
+				accessHash = ch.AccessHash
+				break
+			}
+		}
+	}
+
+	if accessHash != 0 {
+		cacheChannelAccessHash(raw, accessHash)
+		log.Printf("[BotManager] Resolved AccessHash for channel %d: %d", raw, accessHash)
+	}
+	return accessHash
 }
 
 // Suppress unused imports

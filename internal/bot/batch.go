@@ -68,6 +68,7 @@ func (bm *BotManager) handleLinkCommand(
 	targetMsg := msgs[0]
 
 	// Forward media to BIN_CHANNEL
+	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
 	binPeer := toInputPeer(bm.cfg.BinChannel)
 	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
 		FromPeer: peer,

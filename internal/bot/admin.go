@@ -7,42 +7,64 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"filetolink-go/internal/markup"
+
+	"github.com/gotd/td/tg"
 )
+
+func formatReadableTime(seconds int64) string {
+	periods := []struct {
+		suffix string
+		period int64
+	}{
+		{"d", 86400},
+		{"h", 3600},
+		{"m", 60},
+		{"s", 1},
+	}
+	var res []string
+	for _, p := range periods {
+		if seconds >= p.period {
+			val := seconds / p.period
+			seconds %= p.period
+			res = append(res, fmt.Sprintf("%d%s", val, p.suffix))
+		}
+	}
+	if len(res) == 0 {
+		return "0s"
+	}
+	return strings.Join(res, " ")
+}
 
 func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
 	workloads := bm.pool.GetWorkloads()
-	uptime := time.Since(bm.uptime).Round(time.Second)
+	uptimeStr := formatReadableTime(int64(time.Since(bm.uptime).Seconds()))
 
-	totalActive := int32(0)
-	for _, w := range workloads {
-		totalActive += w.ActiveStreams
+	totalWorkload := int32(0)
+	var workloadItems strings.Builder
+	for i, w := range workloads {
+		totalWorkload += w.ActiveStreams
+		workloadItems.WriteString(fmt.Sprintf("   🔹 Client %d: %d\n", i, w.ActiveStreams))
 	}
 
-	var sb strings.Builder
-	sb.WriteString("🌐 <b>System Status:</b> <code>Operational</code>\n\n")
-	sb.WriteString(fmt.Sprintf("⏱ <b>Uptime:</b> <code>%s</code>\n", uptime))
-	sb.WriteString(fmt.Sprintf("🤖 <b>Bot Instances:</b> <code>%d</code>\n", len(workloads)))
-	sb.WriteString(fmt.Sprintf("⚡ <b>Total Workload:</b> <code>%d active streams</code>\n\n", totalActive))
-	sb.WriteString("📊 <b>Workload Distribution:</b>\n\n")
+	statusText := fmt.Sprintf("✅ <b>System Status:</b> Operational\n\n"+
+		"<blockquote>🕒 <b>Uptime:</b> <code>%s</code>\n"+
+		"🤖 <b>Bot Instances:</b> <code>%d</code>\n"+
+		"📊 <b>Total Workload:</b> <code>%d</code></blockquote>\n\n"+
+		"📜 <b>Workload Distribution:</b>\n\n"+
+		"%s\n"+
+		"<blockquote>♻️ <b>Version:</b> <code>1.0.0</code></blockquote>",
+		uptimeStr, len(workloads), totalWorkload, workloadItems.String())
 
-	if len(workloads) == 0 {
-		sb.WriteString("<i>No worker bot sessions configured.</i>\n")
-	} else {
-		for _, w := range workloads {
-			statusTag := "ONLINE"
-			if w.IsInvalid {
-				statusTag = "INVALID / SKIPPED"
-			} else if !w.IsReady {
-				statusTag = "CONNECTING"
-			}
+	var rows [][]tg.KeyboardButtonClass
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close_panel", markup.StyleRed),
+	})
 
-			sb.WriteString(fmt.Sprintf("• <b>Client %d</b> (<code>...%s</code>): <b>%d</b> active connections (Total: %d) [<code>%s</code>]\n",
-				w.Index+1, w.TokenSuffix, w.ActiveStreams, w.TotalStreams, statusTag))
-		}
-	}
-
-	return bm.sendText(ctx, peer, sb.String())
+	_, err := bm.sendTextWithMarkup(ctx, peer, statusText, markup.NewInlineMarkup(rows))
+	return err
 }
 
 func (bm *BotManager) handleUsers(ctx context.Context, chatID int64) error {

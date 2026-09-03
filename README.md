@@ -12,7 +12,7 @@
 
 ## 👨‍💻 Developer & Community
 - 👤 **Developer / Owner:** [@ExE_AQUIB](https://t.me/ExE_AQUIB)
-- 📢 **Updates Channel:** [@Anime_Canon](https://t.me/Anime_Canon)
+- 📢 **Updates Channel:** [@Canon_Bots](https://t.me/Canon_Bots)
 - 📦 **GitHub Repository:** [aquib4040/filetolink-go](https://github.com/aquib4040/filetolink-go)
 
 ---

@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"filetolink-go/internal/pool"
-
 	"github.com/gotd/td/tg"
 )
 
@@ -122,9 +120,4 @@ func htmlEscape(s string) string {
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	return s
-}
-
-func toInputChannel(chatID int64) tg.InputChannelClass {
-	raw := pool.RawChannelID(chatID)
-	return &tg.InputChannel{ChannelID: raw}
 }

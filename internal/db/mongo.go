@@ -462,6 +462,42 @@ func (b *BotDatabase) SaveReelMedia(ctx context.Context, messageID int, fileType
 	return err
 }
 
+func (b *BotDatabase) GetRandomReelMedia(ctx context.Context) (int, string) {
+	if !b.connected {
+		return 0, ""
+	}
+	col := b.db.Collection("reel_media")
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$sample", Value: bson.D{{Key: "size", Value: 1}}}},
+	}
+	cursor, err := col.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, ""
+	}
+	defer cursor.Close(ctx)
+
+	type ReelDoc struct {
+		MessageID int    `bson:"message_id"`
+		FileType  string `bson:"file_type"`
+	}
+	if cursor.Next(ctx) {
+		var doc ReelDoc
+		if err := cursor.Decode(&doc); err == nil {
+			return doc.MessageID, doc.FileType
+		}
+	}
+	return 0, ""
+}
+
+func (b *BotDatabase) DeleteReelMedia(ctx context.Context, messageID int) error {
+	if !b.connected || messageID == 0 {
+		return nil
+	}
+	col := b.db.Collection("reel_media")
+	_, err := col.DeleteOne(ctx, bson.M{"message_id": messageID})
+	return err
+}
+
 // -----------------------------------------------------------------------------
 // Restart Notification Message Tracking
 // -----------------------------------------------------------------------------

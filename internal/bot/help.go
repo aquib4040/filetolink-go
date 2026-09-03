@@ -12,17 +12,15 @@ import (
 
 func (bm *BotManager) handleHelp(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
-	helpText := "📖 <b>Help Guide</b>\n\n" +
-		"• <b>Private:</b> Send any media file directly to generate links.\n" +
-		"• <b>Groups:</b> Reply to any file with <code>/link</code>.\n" +
-		"• <b>Batch:</b> Reply with <code>/link 5</code> to process 5 consecutive files.\n" +
-		"• <b>DC Info:</b> <code>/dc</code> or reply to a file/user to check Telegram Data Center.\n" +
-		"• <b>Ping:</b> <code>/ping</code> to check bot latency."
-	return bm.sendText(ctx, peer, helpText)
+	return bm.sendHelpPanel(ctx, peer, 0)
 }
 
 func (bm *BotManager) handleAbout(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
+	return bm.sendAboutPanel(ctx, peer, 0)
+}
+
+func (bm *BotManager) sendAboutPanel(ctx context.Context, peer tg.InputPeerClass, msgID int) error {
 	aboutText := "🌟 <b>FileToLink-Go Edition</b> 🌟\n\n" +
 		"• <b>Developer:</b> @ExE_AQUIB\n" +
 		"• <b>Updates Channel:</b> @Canon_Bots\n" +
@@ -40,10 +38,40 @@ func (bm *BotManager) handleAbout(ctx context.Context, chatID int64) error {
 	})
 	rows = append(rows, []tg.KeyboardButtonClass{
 		markup.NewURLButtonWithStyle(markup.ToSmallCaps("GitHub Repo"), "https://github.com/aquib4040/filetolink-go", markup.StyleBlue),
+	})
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle("⬅️ Back", "start_back", markup.StyleBlue),
 		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
 	})
 
+	if msgID > 0 {
+		return bm.editMessage(ctx, peer, msgID, aboutText, markup.NewInlineMarkup(rows))
+	}
 	_, err := bm.sendTextWithMarkup(ctx, peer, aboutText, markup.NewInlineMarkup(rows))
+	return err
+}
+
+func (bm *BotManager) sendHelpPanel(ctx context.Context, peer tg.InputPeerClass, msgID int) error {
+	helpText := "📖 <b>Help Guide</b>\n\n" +
+		"• <b>Private:</b> Send any media file directly to generate links.\n" +
+		"• <b>Groups:</b> Reply to any file with <code>/link</code>.\n" +
+		"• <b>Batch:</b> Reply with <code>/link 5</code> to process 5 consecutive files.\n" +
+		"• <b>DC Info:</b> <code>/dc</code> or reply to a file/user to check Telegram Data Center.\n" +
+		"• <b>Ping:</b> <code>/ping</code> to check bot latency."
+
+	var rows [][]tg.KeyboardButtonClass
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("About"), "about_command", markup.StyleBlue),
+	})
+	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle("⬅️ Back", "start_back", markup.StyleBlue),
+		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close", markup.StyleRed),
+	})
+
+	if msgID > 0 {
+		return bm.editMessage(ctx, peer, msgID, helpText, markup.NewInlineMarkup(rows))
+	}
+	_, err := bm.sendTextWithMarkup(ctx, peer, helpText, markup.NewInlineMarkup(rows))
 	return err
 }
 
