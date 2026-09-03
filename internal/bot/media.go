@@ -102,23 +102,10 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	// 6. Extract file metadata
 	fileName, fileSize, fileHash := extractMediaInfo(msg)
 
-	// 7. Generate stateless encrypted token
-	payload := &crypto.FileTokenPayload{
-		ChatID:    bm.cfg.BinChannel,
-		MessageID: int64(fwdMsgID),
-		FileHash:  fileHash,
-		FileSize:  fileSize,
-		FileName:  fileName,
-		CreatedAt: time.Now().Unix(),
-	}
+	// 7. Generate compact stateless encrypted token (24 chars)
+	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)
 
-	token, err := crypto.EncryptPayload(payload, bm.cfg.EncryptionKey)
-	if err != nil {
-		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Encryption error.</b>", nil)
-		return err
-	}
-
-	// 8. Construct clean URLs (NO file hash and NO file name in URL!)
+	// 8. Construct clean URLs
 	baseURL := bm.cfg.BuildEffectiveBaseURL()
 	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
 	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
@@ -137,13 +124,13 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 	if streamable {
 		binLogText = fmt.Sprintf("<blockquote>👤 <b>Source:</b> <a href=\"tg://user?id=%d\">%s</a>\n"+
 			"🆔 <b>ID:</b> <code>%d</code></blockquote>\n\n"+
-			"🚀 <b>Download:</b> <code>%s</code>\n\n"+
-			"🖥️ <b>Stream:</b> <code>%s</code>",
+			"<blockquote>🚀 <b>Download:</b> %s\n\n"+
+			"🖥️ <b>Stream:</b> %s</blockquote>",
 			senderID, sourceName, senderID, downloadURL, streamURL)
 	} else {
 		binLogText = fmt.Sprintf("<blockquote>👤 <b>Source:</b> <a href=\"tg://user?id=%d\">%s</a>\n"+
 			"🆔 <b>ID:</b> <code>%d</code></blockquote>\n\n"+
-			"🚀 <b>Download:</b> <code>%s</code>",
+			"<blockquote>🚀 <b>Download:</b> %s</blockquote>",
 			senderID, sourceName, senderID, downloadURL)
 	}
 
@@ -157,17 +144,17 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		RandomID:  getRandomID(),
 	})
 
-	// 9. Format response text & colorful buttons
+	// 9. Format response text & colorful buttons (professional quotes, no monospace, FDM/1DM pro tip)
 	var text string
 	var rows [][]tg.KeyboardButtonClass
 
 	if streamable {
-		text = fmt.Sprintf("✨ <b>Your Links are Ready!</b> ✨\n\n"+
-			"📁 <b>File:</b> <code>%s</code>\n"+
-			"📦 <b>Size:</b> <code>%s</code>\n\n"+
-			"🚀 <b>Download:</b> <code>%s</code>\n"+
-			"🖥️ <b>Stream:</b> <code>%s</code>\n\n"+
-			"⌛️ <i>Links remain permanently active.</i>",
+		text = fmt.Sprintf("✨ <b>Your Links are Ready!</b>\n\n"+
+			"<blockquote>📁 <b>File Name:</b> %s\n"+
+			"📦 <b>File Size:</b> %s</blockquote>\n\n"+
+			"<blockquote>🚀 <b>Download Link:</b>\n%s\n\n"+
+			"🖥️ <b>Watch Link:</b>\n%s</blockquote>\n\n"+
+			"<blockquote>💡 <b>Pro Tip:</b> For maximum download speed, use <b>FDM (Free Download Manager)</b> on PC and <b>1DM+</b> on Mobile.</blockquote>",
 			htmlEscape(fileName), humanBytes(fileSize), downloadURL, streamURL)
 
 		rows = append(rows, []tg.KeyboardButtonClass{
@@ -175,11 +162,11 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 			markup.NewURLButtonWithStyle(markup.ToSmallCaps("Download"), downloadURL, markup.StyleBlue),
 		})
 	} else {
-		text = fmt.Sprintf("✨ <b>Your Link is Ready!</b> ✨\n\n"+
-			"📁 <b>File:</b> <code>%s</code>\n"+
-			"📦 <b>Size:</b> <code>%s</code>\n\n"+
-			"🚀 <b>Download:</b> <code>%s</code>\n\n"+
-			"⌛️ <i>Link remains permanently active.</i>",
+		text = fmt.Sprintf("✨ <b>Your Link is Ready!</b>\n\n"+
+			"<blockquote>📁 <b>File Name:</b> %s\n"+
+			"📦 <b>File Size:</b> %s</blockquote>\n\n"+
+			"<blockquote>🚀 <b>Download Link:</b>\n%s</blockquote>\n\n"+
+			"<blockquote>💡 <b>Pro Tip:</b> For maximum download speed, use <b>FDM (Free Download Manager)</b> on PC and <b>1DM+</b> on Mobile.</blockquote>",
 			htmlEscape(fileName), humanBytes(fileSize), downloadURL)
 
 		rows = append(rows, []tg.KeyboardButtonClass{

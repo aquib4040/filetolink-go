@@ -246,6 +246,9 @@ func LoadConfig() (*Config, error) {
 
 // BuildBaseURL returns the direct streaming origin URL (e.g. "https://my-app.herokuapp.com" or "http://localhost:8080")
 func (c *Config) BuildBaseURL() string {
+	if strings.HasPrefix(c.FQDN, "http://") || strings.HasPrefix(c.FQDN, "https://") {
+		return strings.TrimRight(c.FQDN, "/")
+	}
 	proto := "http"
 	if c.HasSSL {
 		proto = "https"
