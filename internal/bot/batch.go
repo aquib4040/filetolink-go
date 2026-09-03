@@ -161,6 +161,6 @@ func (bm *BotManager) handleLinkCommand(
 		text += fmt.Sprintf("\n\n<i>Batch request for %d files processed.</i>", count)
 	}
 
-	_, err = bm.sendTextWithMarkup(ctx, peer, text, markup.NewInlineMarkup(rows))
+	_, err = bm.replyWithReel(ctx, peer, 0, text, markup.NewInlineMarkup(rows))
 	return err
 }

@@ -173,6 +173,13 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		})
 	}
 
+	// 10. Reply with Reel if configured, otherwise edit the status message
+	if bm.cfg.ReelChannelID != 0 {
+		_ = bm.deleteMessages(ctx, peer, []int{statusMsgID})
+		_, err = bm.replyWithReel(ctx, peer, msg.ID, text, markup.NewInlineMarkup(rows))
+		return err
+	}
+
 	_ = bm.editMessage(ctx, peer, statusMsgID, text, markup.NewInlineMarkup(rows))
 	return nil
 }

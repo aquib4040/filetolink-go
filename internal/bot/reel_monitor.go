@@ -23,100 +23,128 @@ func (bm *BotManager) checkReelMedia(ctx context.Context, msg *tg.Message, peerI
 	_ = bm.database.SaveReelMedia(ctx, msg.ID, fileType)
 }
 
-// replyWithReel sends a random reel media with caption and markup, falling back to text
+// replyWithReel copies a random reel media from the reel channel and sends it with caption+markup.
+// This is the exact same logic as Pyrogram's bot.copy_message() — fetch msg, extract media, send via MessagesSendMedia.
+// Falls back to plain text if no reel media is available or on any error.
 func (bm *BotManager) replyWithReel(ctx context.Context, peer tg.InputPeerClass, replyToID int, caption string, replyMarkup tg.ReplyMarkupClass) (int, error) {
-	if bm.cfg.ReelChannelID != 0 {
-		reelMsgID, _ := bm.database.GetRandomReelMedia(ctx)
-		if reelMsgID > 0 {
-			raw := pool.RawChannelID(bm.cfg.ReelChannelID)
-			hash := bm.ResolveChannelAccessHash(ctx, bm.cfg.ReelChannelID)
-			reelChannel := &tg.InputChannel{ChannelID: raw, AccessHash: hash}
-			res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
-				Channel: reelChannel,
-				ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: reelMsgID}},
-			})
-			if err != nil {
-				log.Printf("[Reel] ChannelsGetMessages failed for msg %d (channel %d, hash %d): %v", reelMsgID, raw, hash, err)
-			} else if res != nil {
-				msgs := extractMessagesFromClass(res)
-				if len(msgs) > 0 && msgs[0].Media != nil {
-					targetMedia := msgs[0].Media
-					var inputMedia tg.InputMediaClass
+	if bm.cfg.ReelChannelID == 0 {
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
 
-					switch m := targetMedia.(type) {
-					case *tg.MessageMediaDocument:
-						if doc, ok := m.Document.(*tg.Document); ok {
-							inputMedia = &tg.InputMediaDocument{
-								ID: &tg.InputDocument{
-									ID:            doc.ID,
-									AccessHash:    doc.AccessHash,
-									FileReference: doc.FileReference,
-								},
-							}
-						}
-					case *tg.MessageMediaPhoto:
-						if photo, ok := m.Photo.(*tg.Photo); ok {
-							inputMedia = &tg.InputMediaPhoto{
-								ID: &tg.InputPhoto{
-									ID:            photo.ID,
-									AccessHash:    photo.AccessHash,
-									FileReference: photo.FileReference,
-								},
-							}
-						}
-					}
+	reelMsgID, _ := bm.database.GetRandomReelMedia(ctx)
+	if reelMsgID <= 0 {
+		log.Printf("[Reel] No reel media found in DB, falling back to text")
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
 
-					if inputMedia != nil {
-						plainText, entities := parseHTML(caption)
-						if len([]rune(plainText)) > 1024 {
-							// Caption exceeds Telegram 1024 limit: send media first, then full text
-							req := &tg.MessagesSendMediaRequest{
-								Peer:     peer,
-								Media:    inputMedia,
-								RandomID: getRandomID(),
-							}
-							if replyToID > 0 {
-								req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: replyToID}
-							}
-							_, _ = bm.api.MessagesSendMedia(ctx, req)
-							return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
-						}
+	// Step 1: Fetch the message from the reel channel (same as Pyrogram's get_messages)
+	raw := pool.RawChannelID(bm.cfg.ReelChannelID)
+	hash := getCachedChannelAccessHash(raw)
+	if hash == 0 {
+		hash = bm.ResolveChannelAccessHash(ctx, bm.cfg.ReelChannelID)
+	}
 
-						req := &tg.MessagesSendMediaRequest{
-							Peer:        peer,
-							Media:       inputMedia,
-							Message:     plainText,
-							Entities:    entities,
-							RandomID:    getRandomID(),
-							ReplyMarkup: replyMarkup,
-						}
-						if replyToID > 0 {
-							req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: replyToID}
-						}
-						sentRes, sendErr := bm.api.MessagesSendMedia(ctx, req)
-						if sendErr == nil {
-							return extractMsgID(sentRes), nil
-						}
-						log.Printf("[Reel] MessagesSendMedia error for msg %d: %v", reelMsgID, sendErr)
-						if strings.Contains(sendErr.Error(), "MEDIA_CAPTION_TOO_LONG") {
-							req.Message = ""
-							req.Entities = nil
-							req.ReplyMarkup = nil
-							_, _ = bm.api.MessagesSendMedia(ctx, req)
-							return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
-						}
-						// Only delete from DB if the message was deleted from Telegram
-						if strings.Contains(sendErr.Error(), "MESSAGE_ID_INVALID") {
-							_ = bm.database.DeleteReelMedia(ctx, reelMsgID)
-						}
-					}
-				} else {
-					log.Printf("[Reel] Message %d in reel channel has no media or could not be loaded", reelMsgID)
-				}
+	reelChannel := &tg.InputChannel{ChannelID: raw, AccessHash: hash}
+	res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+		Channel: reelChannel,
+		ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: reelMsgID}},
+	})
+	if err != nil {
+		log.Printf("[Reel] ChannelsGetMessages failed for msg %d: %v", reelMsgID, err)
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
+
+	msgs := extractMessagesFromClass(res)
+	if len(msgs) == 0 || msgs[0].Media == nil {
+		log.Printf("[Reel] Msg %d has no media or was empty, removing from DB", reelMsgID)
+		_ = bm.database.DeleteReelMedia(ctx, reelMsgID)
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
+
+	// Step 2: Extract InputMedia from the fetched message (same as Pyrogram building file_id)
+	targetMedia := msgs[0].Media
+	var inputMedia tg.InputMediaClass
+
+	switch m := targetMedia.(type) {
+	case *tg.MessageMediaDocument:
+		if doc, ok := m.Document.(*tg.Document); ok {
+			inputMedia = &tg.InputMediaDocument{
+				ID: &tg.InputDocument{
+					ID:            doc.ID,
+					AccessHash:    doc.AccessHash,
+					FileReference: doc.FileReference,
+				},
+			}
+		}
+	case *tg.MessageMediaPhoto:
+		if photo, ok := m.Photo.(*tg.Photo); ok {
+			inputMedia = &tg.InputMediaPhoto{
+				ID: &tg.InputPhoto{
+					ID:            photo.ID,
+					AccessHash:    photo.AccessHash,
+					FileReference: photo.FileReference,
+				},
 			}
 		}
 	}
 
-	// Fallback to text message
+	if inputMedia == nil {
+		log.Printf("[Reel] Could not extract InputMedia from msg %d", reelMsgID)
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
+
+	// Step 3: Send the media with caption (same as Pyrogram's send_video/send_photo/send_document)
+	plainText, entities := parseHTML(caption)
+
+	// Telegram caption limit is 1024 chars — if exceeded, send media alone then text separately
+	if len([]rune(plainText)) > 1024 {
+		mediaReq := &tg.MessagesSendMediaRequest{
+			Peer:     peer,
+			Media:    inputMedia,
+			RandomID: getRandomID(),
+		}
+		if replyToID > 0 {
+			mediaReq.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: replyToID}
+		}
+		_, _ = bm.api.MessagesSendMedia(ctx, mediaReq)
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
+
+	req := &tg.MessagesSendMediaRequest{
+		Peer:        peer,
+		Media:       inputMedia,
+		Message:     plainText,
+		Entities:    entities,
+		RandomID:    getRandomID(),
+		ReplyMarkup: replyMarkup,
+	}
+	if replyToID > 0 {
+		req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: replyToID}
+	}
+
+	sentRes, sendErr := bm.api.MessagesSendMedia(ctx, req)
+	if sendErr == nil {
+		return extractMsgID(sentRes), nil
+	}
+
+	log.Printf("[Reel] MessagesSendMedia failed for msg %d: %v", reelMsgID, sendErr)
+
+	errStr := sendErr.Error()
+
+	// Handle caption too long
+	if strings.Contains(errStr, "MEDIA_CAPTION_TOO_LONG") {
+		req.Message = ""
+		req.Entities = nil
+		req.ReplyMarkup = nil
+		_, _ = bm.api.MessagesSendMedia(ctx, req)
+		return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
+	}
+
+	// Handle invalid/deleted message
+	if strings.Contains(errStr, "MESSAGE_ID_INVALID") || strings.Contains(errStr, "MEDIA_EMPTY") {
+		_ = bm.database.DeleteReelMedia(ctx, reelMsgID)
+	}
+
+	// Fallback
 	return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
 }
