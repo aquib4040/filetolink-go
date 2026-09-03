@@ -1,18 +1,19 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /build
 
 ENV GOTOOLCHAIN=auto
+ENV PATH="/go/bin:/root/go/bin:${PATH}"
 
 RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./
-RUN sed -i 's/^go .*/go 1.23/' go.mod && go mod download
+RUN go mod download
 
 COPY . .
 
-RUN sed -i 's/^go .*/go 1.23/' go.mod && CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/filetolink-go .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/filetolink-go .
 
 # Final runtime stage
 FROM alpine:3.20
