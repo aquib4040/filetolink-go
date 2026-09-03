@@ -218,20 +218,16 @@ func (pf *ParallelFetcher) StreamMessageRange(
 	var refreshMu sync.Mutex
 	var lastRefreshed time.Time
 
-	refreshFileReference := func(workerBot *pool.BotSession) error {
+	refreshFileReference := func() error {
 		refreshMu.Lock()
 		defer refreshMu.Unlock()
 
-		if time.Since(lastRefreshed) < 10*time.Second {
+		if time.Since(lastRefreshed) < 2*time.Second {
 			return nil
 		}
 
-		safeSuffix := workerBot.Token
-		if len(safeSuffix) > 6 {
-			safeSuffix = safeSuffix[len(safeSuffix)-6:]
-		}
-		log.Printf("[Streamer] File reference expired for msg %d. Refreshing using bot ...%s...", messageID, safeSuffix)
-		_, _, newLoc, err := pf.ResolveDocumentWithBot(ctx, workerBot, chatID, messageID)
+		log.Printf("[Streamer] File reference expired for msg %d. Refreshing using bot...", messageID)
+		_, _, newLoc, err := pf.ResolveDocumentWithBot(ctx, bot, chatID, messageID)
 		if err != nil {
 			return fmt.Errorf("failed to refresh document reference: %w", err)
 		}
@@ -251,13 +247,7 @@ func (pf *ParallelFetcher) StreamMessageRange(
 
 	for i := 0; i < concurrency; i++ {
 		go func() {
-			workerBot, bErr := pf.pool.GetNextAvailable(botTokens, int(apiID), apiHash)
-			if bErr != nil || workerBot == nil {
-				workerBot = bot
-			}
-			workerBot.StartDownload()
-			defer workerBot.EndDownload()
-
+			workerBot := bot
 			for t := range taskChan {
 				select {
 				case <-workerCtx.Done():
@@ -271,15 +261,7 @@ func (pf *ParallelFetcher) StreamMessageRange(
 				if err != nil {
 					errStr := err.Error()
 					if strings.Contains(errStr, "FILE_REFERENCE_EXPIRED") || strings.Contains(errStr, "FILE_REFERENCE_INVALID") {
-						if rErr := refreshFileReference(workerBot); rErr == nil {
-							b, err = getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
-						}
-					} else if strings.Contains(errStr, "FLOOD_WAIT") {
-						// Rotate to another bot session from the pool to bypass floodwait immediately
-						if nextBot, nbErr := pf.pool.GetNextAvailable(botTokens, int(apiID), apiHash); nbErr == nil && nextBot != nil && nextBot != workerBot {
-							workerBot.EndDownload()
-							workerBot = nextBot
-							workerBot.StartDownload()
+						if rErr := refreshFileReference(); rErr == nil {
 							b, err = getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
 						}
 					}

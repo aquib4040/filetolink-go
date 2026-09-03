@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"filetolink-go/internal/pool"
@@ -27,12 +28,16 @@ func (bm *BotManager) replyWithReel(ctx context.Context, peer tg.InputPeerClass,
 	if bm.cfg.ReelChannelID != 0 {
 		reelMsgID, _ := bm.database.GetRandomReelMedia(ctx)
 		if reelMsgID > 0 {
-			reelChannel := toInputChannel(bm.cfg.ReelChannelID)
+			raw := pool.RawChannelID(bm.cfg.ReelChannelID)
+			hash := bm.ResolveChannelAccessHash(ctx, bm.cfg.ReelChannelID)
+			reelChannel := &tg.InputChannel{ChannelID: raw, AccessHash: hash}
 			res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 				Channel: reelChannel,
 				ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: reelMsgID}},
 			})
-			if err == nil && res != nil {
+			if err != nil {
+				log.Printf("[Reel] ChannelsGetMessages failed for msg %d (channel %d, hash %d): %v", reelMsgID, raw, hash, err)
+			} else if res != nil {
 				msgs := extractMessagesFromClass(res)
 				if len(msgs) > 0 && msgs[0].Media != nil {
 					targetMedia := msgs[0].Media
@@ -92,6 +97,7 @@ func (bm *BotManager) replyWithReel(ctx context.Context, peer tg.InputPeerClass,
 						if sendErr == nil {
 							return extractMsgID(sentRes), nil
 						}
+						log.Printf("[Reel] MessagesSendMedia error for msg %d: %v", reelMsgID, sendErr)
 						if strings.Contains(sendErr.Error(), "MEDIA_CAPTION_TOO_LONG") {
 							req.Message = ""
 							req.Entities = nil
@@ -99,8 +105,13 @@ func (bm *BotManager) replyWithReel(ctx context.Context, peer tg.InputPeerClass,
 							_, _ = bm.api.MessagesSendMedia(ctx, req)
 							return bm.sendTextWithMarkup(ctx, peer, caption, replyMarkup)
 						}
-						_ = bm.database.DeleteReelMedia(ctx, reelMsgID)
+						// Only delete from DB if the message was deleted from Telegram
+						if strings.Contains(sendErr.Error(), "MESSAGE_ID_INVALID") {
+							_ = bm.database.DeleteReelMedia(ctx, reelMsgID)
+						}
 					}
+				} else {
+					log.Printf("[Reel] Message %d in reel channel has no media or could not be loaded", reelMsgID)
 				}
 			}
 		}

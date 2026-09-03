@@ -663,40 +663,49 @@ func (bm *BotManager) ResolveChannelAccessHash(ctx context.Context, chatID int64
 		return 0
 	}
 
+	// 1. Try MessagesGetChats first (does not require AccessHash!)
+	if chats, err := bm.api.MessagesGetChats(ctx, []int64{raw}); err == nil && chats != nil {
+		var chatList []tg.ChatClass
+		switch c := chats.(type) {
+		case *tg.MessagesChats:
+			chatList = c.Chats
+		case *tg.MessagesChatsSlice:
+			chatList = c.Chats
+		}
+		for _, chat := range chatList {
+			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw && ch.AccessHash != 0 {
+				cacheChannelAccessHash(raw, ch.AccessHash)
+				log.Printf("[BotManager] Resolved AccessHash for channel %d: %d", raw, ch.AccessHash)
+				return ch.AccessHash
+			}
+		}
+	}
+
+	// 2. Try ChannelsGetChannels as fallback
 	chats, err := bm.api.ChannelsGetChannels(ctx, []tg.InputChannelClass{
 		&tg.InputChannel{
 			ChannelID:  raw,
 			AccessHash: 0,
 		},
 	})
-	if err != nil {
-		log.Printf("[BotManager] Warning: ChannelsGetChannels failed for channel %d: %v", raw, err)
-		return 0
-	}
-
-	var accessHash int64
-	switch c := chats.(type) {
-	case *tg.MessagesChats:
-		for _, chat := range c.Chats {
-			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw {
-				accessHash = ch.AccessHash
-				break
-			}
+	if err == nil && chats != nil {
+		var chatList []tg.ChatClass
+		switch c := chats.(type) {
+		case *tg.MessagesChats:
+			chatList = c.Chats
+		case *tg.MessagesChatsSlice:
+			chatList = c.Chats
 		}
-	case *tg.MessagesChatsSlice:
-		for _, chat := range c.Chats {
-			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw {
-				accessHash = ch.AccessHash
-				break
+		for _, chat := range chatList {
+			if ch, ok := chat.(*tg.Channel); ok && ch.ID == raw && ch.AccessHash != 0 {
+				cacheChannelAccessHash(raw, ch.AccessHash)
+				log.Printf("[BotManager] Resolved AccessHash for channel %d: %d (via ChannelsGetChannels)", raw, ch.AccessHash)
+				return ch.AccessHash
 			}
 		}
 	}
 
-	if accessHash != 0 {
-		cacheChannelAccessHash(raw, accessHash)
-		log.Printf("[BotManager] Resolved AccessHash for channel %d: %d", raw, accessHash)
-	}
-	return accessHash
+	return 0
 }
 
 // Suppress unused imports
