@@ -9,8 +9,8 @@
 
 <p align="center">
   <a href="https://github.com/aquib4040/filetolink-go/actions/workflows/ci.yml"><img src="https://github.com/aquib4040/filetolink-go/actions/workflows/ci.yml/badge.svg" alt="CI Pipeline"></a>
-  <a href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/aquib4040/filetolink-go?style=flat&logo=go" alt="Go Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/aquib4040/filetolink-go?style=flat" alt="License"></a>
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go&logoColor=white" alt="Go Version">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat" alt="License"></a>
   <a href="https://t.me/Canon_Bots"><img src="https://img.shields.io/badge/Channel-@Canon__Bots-blue?style=flat&logo=telegram" alt="Telegram Channel"></a>
   <a href="https://t.me/ExE_AQUIB"><img src="https://img.shields.io/badge/Developer-@ExE__AQUIB-orange?style=flat&logo=telegram" alt="Developer"></a>
 </p>
