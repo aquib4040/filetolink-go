@@ -54,26 +54,41 @@ func extractMediaInfo(msg *tg.Message) (fileName string, fileSize int64, fileHas
 }
 
 func extractMsgID(res tg.UpdatesClass) int {
+	var updates []tg.UpdateClass
 	switch u := res.(type) {
 	case *tg.Updates:
-		for _, upd := range u.Updates {
-			if m, ok := upd.(*tg.UpdateMessageID); ok {
-				return m.ID
-			}
-			if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
-				if msg, ok := nm.Message.(*tg.Message); ok {
-					return msg.ID
-				}
-			}
-			if nm, ok := upd.(*tg.UpdateNewMessage); ok {
-				if msg, ok := nm.Message.(*tg.Message); ok {
-					return msg.ID
-				}
-			}
-		}
+		updates = u.Updates
+	case *tg.UpdatesCombined:
+		updates = u.Updates
 	case *tg.UpdateShortSentMessage:
 		return u.ID
 	}
+
+	// 1. Primary: new channel message (e.g. forward to BIN_CHANNEL)
+	for _, upd := range updates {
+		if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
+			if msg, ok := nm.Message.(*tg.Message); ok {
+				return msg.ID
+			}
+		}
+	}
+
+	// 2. Secondary: new direct/chat message
+	for _, upd := range updates {
+		if nm, ok := upd.(*tg.UpdateNewMessage); ok {
+			if msg, ok := nm.Message.(*tg.Message); ok {
+				return msg.ID
+			}
+		}
+	}
+
+	// 3. Fallback: UpdateMessageID (client-side mapping)
+	for _, upd := range updates {
+		if m, ok := upd.(*tg.UpdateMessageID); ok {
+			return m.ID
+		}
+	}
+
 	return 0
 }
 

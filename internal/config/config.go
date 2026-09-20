@@ -190,14 +190,14 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	rateLimitRPS := 10
+	rateLimitRPS := 100
 	if rStr := os.Getenv("RATE_LIMIT_RPS"); rStr != "" {
 		if r, err := strconv.Atoi(rStr); err == nil && r > 0 {
 			rateLimitRPS = r
 		}
 	}
 
-	rateLimitBurst := 20
+	rateLimitBurst := 200
 	if bStr := os.Getenv("RATE_LIMIT_BURST"); bStr != "" {
 		if b, err := strconv.Atoi(bStr); err == nil && b > 0 {
 			rateLimitBurst = b

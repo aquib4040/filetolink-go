@@ -768,13 +768,18 @@ func (bm *BotManager) ForwardToBinWithFloodWait(ctx context.Context, fromPeer tg
 		}
 
 		var fwdMsg *tg.Message
-		if u, ok := fwdRes.(*tg.Updates); ok {
-			for _, upd := range u.Updates {
-				if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
-					if m, ok := nm.Message.(*tg.Message); ok {
-						fwdMsg = m
-						break
-					}
+		var updates []tg.UpdateClass
+		switch u := fwdRes.(type) {
+		case *tg.Updates:
+			updates = u.Updates
+		case *tg.UpdatesCombined:
+			updates = u.Updates
+		}
+		for _, upd := range updates {
+			if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
+				if m, ok := nm.Message.(*tg.Message); ok {
+					fwdMsg = m
+					break
 				}
 			}
 		}

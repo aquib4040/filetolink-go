@@ -157,7 +157,7 @@ func (s *HTTPServer) rateLimitMiddleware(next http.Handler) http.Handler {
 
 		limit := s.cfg.RateLimitBurst
 		if limit <= 0 {
-			limit = 20
+			limit = 200
 		}
 
 		if len(valid) >= limit {
