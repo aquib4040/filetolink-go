@@ -284,6 +284,11 @@ func (pf *ParallelFetcher) StreamMessageRange(
 				}
 			}()
 
+			// Pre-resolve channel for wBot so access hash is cached in its session
+			if wBot != bot {
+				_, _ = wBot.ResolveChannel(workerCtx, chatID)
+			}
+
 			for t := range taskChan {
 				select {
 				case <-workerCtx.Done():
@@ -297,6 +302,10 @@ func (pf *ParallelFetcher) StreamMessageRange(
 
 				wBot.Touch()
 				b, err := getFileWithRetry(workerCtx, wBot.API, loc, t.offset, t.limit)
+				if err != nil && wBot != bot {
+					// Fallback to verified main bot session
+					b, err = getFileWithRetry(workerCtx, bot.API, loc, t.offset, t.limit)
+				}
 				if err != nil {
 					errStr := err.Error()
 					if strings.Contains(errStr, "FILE_REFERENCE_EXPIRED") || strings.Contains(errStr, "FILE_REFERENCE_INVALID") {
@@ -304,7 +313,7 @@ func (pf *ParallelFetcher) StreamMessageRange(
 							locMu.RLock()
 							loc = location
 							locMu.RUnlock()
-							b, err = getFileWithRetry(workerCtx, wBot.API, loc, t.offset, t.limit)
+							b, err = getFileWithRetry(workerCtx, bot.API, loc, t.offset, t.limit)
 						}
 					}
 				}
