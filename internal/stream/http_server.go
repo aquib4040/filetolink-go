@@ -24,12 +24,17 @@ import (
 	"filetolink-go/internal/pool"
 )
 
+type MediaForwarder interface {
+	ForwardAndGenerateLink(ctx context.Context, fromChannelID int64, messageID int64) (downloadURL string, streamURL string, fileName string, fileSize int64, err error)
+}
+
 type HTTPServer struct {
 	cfg          *config.Config
 	pool         *pool.SessionPool
 	fetcher      *ParallelFetcher
 	database     *db.BotDatabase
 	templates    *template.Template
+	forwarder    MediaForwarder
 	
 	activeDownloads  atomic.Int64
 	totalDownloads   atomic.Int64
@@ -37,6 +42,10 @@ type HTTPServer struct {
 
 	rateMu     sync.Mutex
 	requestLog map[string][]int64
+}
+
+func (s *HTTPServer) SetForwarder(f MediaForwarder) {
+	s.forwarder = f
 }
 
 func NewHTTPServer(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *HTTPServer {
@@ -77,11 +86,10 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/watch", s.handlePermanentRedirect)
 	mux.HandleFunc("/dl", s.handlePermanentRedirect)
 
-	// API endpoints
+	// API endpoints (Unified single link generation endpoint)
 	mux.HandleFunc("/reel_random", s.handleReelRandom)
 	mux.HandleFunc("/api/generate_link", s.handleAPIGenerateLink)
-	mux.HandleFunc("/api/file_stream_url", s.handleAPIFileStreamURL)
-	mux.HandleFunc("/api/stream/", s.handleAPIChatStream)
+	mux.HandleFunc("/api/file_stream_url", s.handleAPIGenerateLink)
 	mux.HandleFunc("/api/tracks/", s.handleAPITracks)
 	mux.HandleFunc("/stats", s.handleStats)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -429,22 +437,53 @@ func (s *HTTPServer) handlePermanentRedirect(w http.ResponseWriter, r *http.Requ
 }
 
 // -----------------------------------------------------------------------------
-// REST API: POST /api/generate_link
+// REST API: POST or GET /api/generate_link
 // -----------------------------------------------------------------------------
 
 func (s *HTTPServer) handleAPIGenerateLink(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
+	w.Header().Set("Content-Type", "application/json")
+
+	var channelID int64
+	var messageID int64
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			ChannelID int64 `json:"channel_id"`
+			ChatID    int64 `json:"chat_id"`
+			MessageID int64 `json:"message_id"`
+			MsgID     int64 `json:"msg_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			if req.ChannelID != 0 {
+				channelID = req.ChannelID
+			} else {
+				channelID = req.ChatID
+			}
+			if req.MessageID != 0 {
+				messageID = req.MessageID
+			} else {
+				messageID = req.MsgID
+			}
+		}
 	}
 
-	var req struct {
-		ChannelID int64 `json:"channel_id"`
-		MessageID int64 `json:"message_id"`
+	// Fallback to query params if not found in JSON or for GET requests
+	if channelID == 0 {
+		chStr := r.URL.Query().Get("channel_id")
+		if chStr == "" {
+			chStr = r.URL.Query().Get("chat_id")
+		}
+		channelID, _ = strconv.ParseInt(chStr, 10, 64)
+	}
+	if messageID == 0 {
+		msgStr := r.URL.Query().Get("message_id")
+		if msgStr == "" {
+			msgStr = r.URL.Query().Get("msg_id")
+		}
+		messageID, _ = strconv.ParseInt(msgStr, 10, 64)
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChannelID == 0 || req.MessageID == 0 {
-		w.Header().Set("Content-Type", "application/json")
+	if channelID == 0 || messageID == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
@@ -453,117 +492,33 @@ func (s *HTTPServer) handleAPIGenerateLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	bot, err := s.pool.GetNextAvailable(nil, int(s.cfg.APIID), s.cfg.APIHash)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
+	if s.forwarder == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "bot session unavailable"})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "bot forwarder service unavailable",
+		})
 		return
 	}
 
-	exactSize, fileName, _, err := s.fetcher.ResolveDocumentWithBot(r.Context(), bot, req.ChannelID, req.MessageID)
+	downloadURL, streamURL, fileName, fileSize, err := s.forwarder.ForwardAndGenerateLink(r.Context(), channelID, messageID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
-		return
-	}
-
-	payload := &crypto.FileTokenPayload{
-		ChatID:    req.ChannelID,
-		MessageID: req.MessageID,
-		FileHash:  "apigen",
-		FileSize:  exactSize,
-		FileName:  fileName,
-		CreatedAt: time.Now().Unix(),
-	}
-
-	token, err := crypto.EncryptPayload(payload, s.cfg.EncryptionKey)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
+		log.Printf("[APIGenerateLink] Error generating link for channel %d msg %d: %v", channelID, messageID, err)
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "failed to encrypt token"})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 
-	baseURL := s.cfg.BuildEffectiveBaseURL()
-	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":       true,
-		"download_link": fmt.Sprintf("%s/dl/%s", baseURL, token),
-		"stream_link":   fmt.Sprintf("%s/watch/%s", baseURL, token),
+		"download_link": downloadURL,
+		"stream_link":   streamURL,
 		"file_name":     fileName,
-		"file_size":     exactSize,
+		"file_size":     fileSize,
 	})
-}
-
-// -----------------------------------------------------------------------------
-// REST API: GET /api/file_stream_url
-// -----------------------------------------------------------------------------
-
-func (s *HTTPServer) handleAPIFileStreamURL(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	msgIDStr := q.Get("message_id")
-	chatIDStr := q.Get("chat_id")
-	if msgIDStr == "" || chatIDStr == "" {
-		http.Error(w, `{"error":"Missing message_id or chat_id"}`, http.StatusBadRequest)
-		return
-	}
-
-	msgID, _ := strconv.ParseInt(msgIDStr, 10, 64)
-	chatID, _ := strconv.ParseInt(chatIDStr, 10, 64)
-
-	payload := &crypto.FileTokenPayload{
-		ChatID:    chatID,
-		MessageID: msgID,
-		FileHash:  q.Get("hash"),
-		CreatedAt: time.Now().Unix(),
-	}
-
-	token, err := crypto.EncryptPayload(payload, s.cfg.EncryptionKey)
-	if err != nil {
-		http.Error(w, `{"error":"encryption error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	streamURL := fmt.Sprintf("%s/watch/%s", s.cfg.BuildEffectiveBaseURL(), token)
-	dlURL := fmt.Sprintf("%s/dl/%s", s.cfg.BuildEffectiveBaseURL(), token)
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":       true,
-		"stream_url":    streamURL,
-		"download_link": dlURL,
-	})
-}
-
-// -----------------------------------------------------------------------------
-// REST API: GET /api/stream/{chat_id}/{path}
-// -----------------------------------------------------------------------------
-
-func (s *HTTPServer) handleAPIChatStream(w http.ResponseWriter, r *http.Request) {
-	trimmed := strings.TrimPrefix(r.URL.Path, "/api/stream/")
-	parts := strings.SplitN(trimmed, "/", 2)
-	if len(parts) < 2 {
-		http.Error(w, "Invalid api stream path", http.StatusBadRequest)
-		return
-	}
-
-	chatID, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid chat_id", http.StatusBadRequest)
-		return
-	}
-
-	token := parts[1]
-	payload, err := crypto.ResolveTokenOrLegacy(token, chatID, s.cfg.EncryptionKey)
-	if err != nil {
-		http.Error(w, "Invalid token or path", http.StatusNotFound)
-		return
-	}
-	payload.ChatID = chatID
-
-	s.streamToken(w, r, token)
 }
 
 // -----------------------------------------------------------------------------

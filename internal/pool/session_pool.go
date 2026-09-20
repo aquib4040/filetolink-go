@@ -107,14 +107,15 @@ func FormatChannelID(id int64) int64 {
 
 // RawChannelID extracts the raw Telegram channel ID from -100XXXXXXXXX format
 func RawChannelID(chatID int64) int64 {
-	if chatID < 0 {
-		s := strconv.FormatInt(-chatID, 10)
-		if strings.HasPrefix(s, "100") && len(s) > 3 {
-			raw, err := strconv.ParseInt(s[3:], 10, 64)
-			if err == nil {
-				return raw
-			}
+	s := strconv.FormatInt(chatID, 10)
+	s = strings.TrimPrefix(s, "-")
+	if strings.HasPrefix(s, "100") && len(s) > 3 {
+		if raw, err := strconv.ParseInt(s[3:], 10, 64); err == nil {
+			return raw
 		}
+	}
+	if parsed, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return parsed
 	}
 	return chatID
 }

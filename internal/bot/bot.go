@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"filetolink-go/internal/config"
+	"filetolink-go/internal/crypto"
 	"filetolink-go/internal/db"
 	"filetolink-go/internal/markup"
 	"filetolink-go/internal/pool"
@@ -706,6 +707,108 @@ func (bm *BotManager) ResolveChannelAccessHash(ctx context.Context, chatID int64
 	}
 
 	return 0
+}
+
+func (bm *BotManager) ForwardAndGenerateLink(ctx context.Context, fromChannelID int64, messageID int64) (string, string, string, int64, error) {
+	if bm.api == nil {
+		return "", "", "", 0, fmt.Errorf("bot is not connected to Telegram")
+	}
+
+	fromChannelID = pool.FormatChannelID(fromChannelID)
+	rawFromID := pool.RawChannelID(fromChannelID)
+	rawBinID := pool.RawChannelID(bm.cfg.BinChannel)
+
+	binHash := bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
+	if binHash == 0 {
+		return "", "", "", 0, fmt.Errorf("failed to resolve bin channel %d access hash", bm.cfg.BinChannel)
+	}
+
+	var fwdMsgID int
+	var fwdMsg *tg.Message
+
+	if rawFromID == rawBinID {
+		// Already in BIN_CHANNEL, resolve directly
+		fwdMsgID = int(messageID)
+		res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: rawBinID, AccessHash: binHash},
+			ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: fwdMsgID}},
+		})
+		if err != nil {
+			return "", "", "", 0, fmt.Errorf("failed to fetch message from bin channel: %w", err)
+		}
+		msgs := extractMessagesFromClass(res)
+		if len(msgs) > 0 {
+			fwdMsg = msgs[0]
+		}
+	} else {
+		// External channel: resolve access hash and forward to BIN_CHANNEL
+		fromHash := bm.ResolveChannelAccessHash(ctx, fromChannelID)
+		if fromHash == 0 {
+			return "", "", "", 0, fmt.Errorf("failed to resolve channel %d: bot is not an admin or channel not found", fromChannelID)
+		}
+
+		fromPeer := &tg.InputPeerChannel{ChannelID: rawFromID, AccessHash: fromHash}
+		binPeer := &tg.InputPeerChannel{ChannelID: rawBinID, AccessHash: binHash}
+
+		fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
+			FromPeer:   fromPeer,
+			ToPeer:     binPeer,
+			ID:         []int{int(messageID)},
+			RandomID:   []int64{getRandomID()},
+			DropAuthor: true,
+		})
+		if err != nil {
+			return "", "", "", 0, fmt.Errorf("failed to forward message to bin channel: %w", err)
+		}
+
+		fwdMsgID = extractMsgID(fwdRes)
+		if fwdMsgID == 0 {
+			return "", "", "", 0, fmt.Errorf("failed to extract forwarded message ID")
+		}
+
+		// Try to find message in forward updates
+		if u, ok := fwdRes.(*tg.Updates); ok {
+			for _, upd := range u.Updates {
+				if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
+					if m, ok := nm.Message.(*tg.Message); ok {
+						fwdMsg = m
+						break
+					}
+				}
+			}
+		}
+
+		// Fallback: fetch directly from bin channel
+		if fwdMsg == nil {
+			res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+				Channel: &tg.InputChannel{ChannelID: rawBinID, AccessHash: binHash},
+				ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: fwdMsgID}},
+			})
+			if err == nil {
+				msgs := extractMessagesFromClass(res)
+				if len(msgs) > 0 {
+					fwdMsg = msgs[0]
+				}
+			}
+		}
+	}
+
+	var fileName string
+	var fileSize int64
+	if fwdMsg != nil {
+		fileName, fileSize, _ = extractMediaInfo(fwdMsg)
+	}
+	if fileName == "" {
+		fileName = fmt.Sprintf("file_%d.bin", fwdMsgID)
+	}
+
+	// Generate compact 24-character token
+	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)
+	baseURL := bm.cfg.BuildEffectiveBaseURL()
+	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
+	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
+
+	return downloadURL, streamURL, fileName, fileSize, nil
 }
 
 // Suppress unused imports

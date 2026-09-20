@@ -45,19 +45,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 5. Start HTTP Streaming & REST Server
-	httpServer := stream.NewHTTPServer(cfg, sessPool, database)
-	go func() {
-		if err := httpServer.Start(ctx); err != nil {
-			log.Fatalf("[HTTPServer] Fatal error: %v", err)
-		}
-	}()
-
-	// 6. Start Telegram Bot Service
+	// 5. Initialize & Start Telegram Bot Service
 	botManager := bot.NewBotManager(cfg, sessPool, database)
 	go func() {
 		if err := botManager.Start(ctx); err != nil {
 			log.Printf("[BotManager] Notice: %v", err)
+		}
+	}()
+
+	// 6. Start HTTP Streaming & REST Server with main bot forwarder
+	httpServer := stream.NewHTTPServer(cfg, sessPool, database)
+	httpServer.SetForwarder(botManager)
+	go func() {
+		if err := httpServer.Start(ctx); err != nil {
+			log.Fatalf("[HTTPServer] Fatal error: %v", err)
 		}
 	}()
 
