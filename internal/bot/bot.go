@@ -860,7 +860,7 @@ func (bm *BotManager) ForwardAndGenerateLink(ctx context.Context, fromChannelID 
 
 	// Generate compact 24-character token
 	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)
-	baseURL := bm.cfg.BuildEffectiveBaseURL()
+	baseURL := bm.cfg.BuildBaseURL()
 	downloadURL := fmt.Sprintf("%s/dl/%s", baseURL, token)
 	streamURL := fmt.Sprintf("%s/watch/%s", baseURL, token)
 
