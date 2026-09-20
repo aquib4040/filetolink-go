@@ -76,30 +76,24 @@ func (bm *BotManager) handleMedia(ctx context.Context, msg *tg.Message, senderID
 		return err
 	}
 
-	// 5. Forward media to BIN_CHANNEL
-	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
-	binPeer := toInputPeer(bm.cfg.BinChannel)
-	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
-		FromPeer:   peer,
-		ToPeer:     binPeer,
-		ID:         []int{msg.ID},
-		RandomID:   []int64{getRandomID()},
-		DropAuthor: true,
-	})
+	// 5. Forward media to BIN_CHANNEL with rate limit and FLOOD_WAIT protection
+	fwdMsgID, fwdMsg, err := bm.ForwardToBinWithFloodWait(ctx, peer, msg.ID)
 	if err != nil {
 		log.Printf("[Bot] Failed to forward media to BIN_CHANNEL: %v", err)
-		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Failed to store media in storage channel.</b>", nil)
+		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Failed to store media in storage channel:</b> "+err.Error(), nil)
 		return err
 	}
-
-	fwdMsgID := extractMsgID(fwdRes)
-	if fwdMsgID == 0 {
-		_ = bm.editMessage(ctx, peer, statusMsgID, "❌ <b>Failed to resolve stored message.</b>", nil)
-		return fmt.Errorf("forwarded message ID not found")
-	}
+	binPeer := toInputPeer(bm.cfg.BinChannel)
 
 	// 6. Extract file metadata
-	fileName, fileSize, _ := extractMediaInfo(msg)
+	var fileName string
+	var fileSize int64
+	if fwdMsg != nil {
+		fileName, fileSize, _ = extractMediaInfo(fwdMsg)
+	}
+	if fileName == "" {
+		fileName, fileSize, _ = extractMediaInfo(msg)
+	}
 
 	// 7. Generate compact stateless encrypted token (24 chars)
 	token := crypto.EncryptCompactMessageID(int64(fwdMsgID), bm.cfg.EncryptionKey)

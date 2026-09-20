@@ -24,21 +24,24 @@ import (
 	"github.com/gotd/td/telegram/message/html"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 )
 
 type BotManager struct {
-	cfg        *config.Config
-	pool       *pool.SessionPool
-	database   *db.BotDatabase
-	shortener  *shortener.Shortener
-	client     *telegram.Client
-	api        *tg.Client
-	botUser     *tg.User
-	dispatcher  tg.UpdateDispatcher
-	uptime      time.Time
-	dynSettings db.DynamicBotSettings
-	settingsMu  sync.RWMutex
-	mu          sync.RWMutex
+	cfg          *config.Config
+	pool         *pool.SessionPool
+	database     *db.BotDatabase
+	shortener    *shortener.Shortener
+	client       *telegram.Client
+	api          *tg.Client
+	botUser      *tg.User
+	dispatcher   tg.UpdateDispatcher
+	uptime        time.Time
+	dynSettings   db.DynamicBotSettings
+	settingsMu    sync.RWMutex
+	mu            sync.RWMutex
+	binForwardMu  sync.Mutex
+	lastForward   time.Time
 }
 
 func NewBotManager(cfg *config.Config, p *pool.SessionPool, d *db.BotDatabase) *BotManager {
@@ -709,6 +712,92 @@ func (bm *BotManager) ResolveChannelAccessHash(ctx context.Context, chatID int64
 	return 0
 }
 
+// ForwardToBinWithFloodWait safely forwards a message to the BIN_CHANNEL with rate limiting
+// (minimum 1.5s delay between forwards) and automatic retry on Telegram FLOOD_WAIT errors.
+func (bm *BotManager) ForwardToBinWithFloodWait(ctx context.Context, fromPeer tg.InputPeerClass, msgID int) (int, *tg.Message, error) {
+	bm.binForwardMu.Lock()
+	defer bm.binForwardMu.Unlock()
+
+	rawBinID := pool.RawChannelID(bm.cfg.BinChannel)
+	binHash := bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
+	if binHash == 0 {
+		return 0, nil, fmt.Errorf("failed to resolve bin channel %d access hash", bm.cfg.BinChannel)
+	}
+	binPeer := &tg.InputPeerChannel{ChannelID: rawBinID, AccessHash: binHash}
+
+	maxRetries := 5
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Enforce rate limit: at least 1500ms between forwards to prevent Telegram flooding
+		since := time.Since(bm.lastForward)
+		if since < 1500*time.Millisecond {
+			delay := 1500*time.Millisecond - since
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return 0, nil, ctx.Err()
+			}
+		}
+
+		bm.lastForward = time.Now()
+
+		fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
+			FromPeer:   fromPeer,
+			ToPeer:     binPeer,
+			ID:         []int{msgID},
+			RandomID:   []int64{getRandomID()},
+			DropAuthor: true,
+		})
+
+		if err != nil {
+			if flood, ok := tgerr.AsFloodWait(err); ok {
+				waitTime := flood + 1*time.Second
+				log.Printf("[BotManager] Forward FLOOD_WAIT: sleeping %v before retry (attempt %d/%d)", waitTime, attempt+1, maxRetries)
+				select {
+				case <-time.After(waitTime):
+					continue
+				case <-ctx.Done():
+					return 0, nil, ctx.Err()
+				}
+			}
+			return 0, nil, fmt.Errorf("failed to forward message to bin channel: %w", err)
+		}
+
+		fwdMsgID := extractMsgID(fwdRes)
+		if fwdMsgID == 0 {
+			return 0, nil, fmt.Errorf("failed to extract forwarded message ID")
+		}
+
+		var fwdMsg *tg.Message
+		if u, ok := fwdRes.(*tg.Updates); ok {
+			for _, upd := range u.Updates {
+				if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
+					if m, ok := nm.Message.(*tg.Message); ok {
+						fwdMsg = m
+						break
+					}
+				}
+			}
+		}
+
+		if fwdMsg == nil {
+			res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+				Channel: &tg.InputChannel{ChannelID: rawBinID, AccessHash: binHash},
+				ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: fwdMsgID}},
+			})
+			if err == nil {
+				msgs := extractMessagesFromClass(res)
+				if len(msgs) > 0 {
+					fwdMsg = msgs[0]
+				}
+			}
+		}
+
+		return fwdMsgID, fwdMsg, nil
+	}
+
+	return 0, nil, fmt.Errorf("max retries exceeded forwarding message to bin channel")
+}
+
 func (bm *BotManager) ForwardAndGenerateLink(ctx context.Context, fromChannelID int64, messageID int64) (string, string, string, int64, error) {
 	if bm.api == nil {
 		return "", "", "", 0, fmt.Errorf("bot is not connected to Telegram")
@@ -741,55 +830,17 @@ func (bm *BotManager) ForwardAndGenerateLink(ctx context.Context, fromChannelID 
 			fwdMsg = msgs[0]
 		}
 	} else {
-		// External channel: resolve access hash and forward to BIN_CHANNEL
+		// External channel: resolve access hash and forward to BIN_CHANNEL with rate limit and flood wait protection
 		fromHash := bm.ResolveChannelAccessHash(ctx, fromChannelID)
 		if fromHash == 0 {
 			return "", "", "", 0, fmt.Errorf("failed to resolve channel %d: bot is not an admin or channel not found", fromChannelID)
 		}
 
 		fromPeer := &tg.InputPeerChannel{ChannelID: rawFromID, AccessHash: fromHash}
-		binPeer := &tg.InputPeerChannel{ChannelID: rawBinID, AccessHash: binHash}
-
-		fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
-			FromPeer:   fromPeer,
-			ToPeer:     binPeer,
-			ID:         []int{int(messageID)},
-			RandomID:   []int64{getRandomID()},
-			DropAuthor: true,
-		})
+		var err error
+		fwdMsgID, fwdMsg, err = bm.ForwardToBinWithFloodWait(ctx, fromPeer, int(messageID))
 		if err != nil {
 			return "", "", "", 0, fmt.Errorf("failed to forward message to bin channel: %w", err)
-		}
-
-		fwdMsgID = extractMsgID(fwdRes)
-		if fwdMsgID == 0 {
-			return "", "", "", 0, fmt.Errorf("failed to extract forwarded message ID")
-		}
-
-		// Try to find message in forward updates
-		if u, ok := fwdRes.(*tg.Updates); ok {
-			for _, upd := range u.Updates {
-				if nm, ok := upd.(*tg.UpdateNewChannelMessage); ok {
-					if m, ok := nm.Message.(*tg.Message); ok {
-						fwdMsg = m
-						break
-					}
-				}
-			}
-		}
-
-		// Fallback: fetch directly from bin channel
-		if fwdMsg == nil {
-			res, err := bm.api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
-				Channel: &tg.InputChannel{ChannelID: rawBinID, AccessHash: binHash},
-				ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: fwdMsgID}},
-			})
-			if err == nil {
-				msgs := extractMessagesFromClass(res)
-				if len(msgs) > 0 {
-					fwdMsg = msgs[0]
-				}
-			}
 		}
 	}
 

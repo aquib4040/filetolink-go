@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,12 +56,20 @@ func getFileWithRetry(ctx context.Context, api *tg.Client, location tg.InputFile
 			if waitTime < 1*time.Second {
 				waitTime = 1 * time.Second
 			}
-			time.Sleep(waitTime + time.Duration(rand.Intn(400))*time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(waitTime + time.Duration(rand.Intn(400))*time.Millisecond):
+			}
 			continue
 		}
 
 		if strings.Contains(err.Error(), "FLOOD_WAIT") {
-			time.Sleep(2*time.Second + time.Duration(rand.Intn(400))*time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(2*time.Second + time.Duration(rand.Intn(400))*time.Millisecond):
+			}
 			continue
 		}
 
@@ -70,7 +79,11 @@ func getFileWithRetry(ctx context.Context, api *tg.Client, location tg.InputFile
 			strings.Contains(errStr, "write tcp") || strings.Contains(errStr, "read tcp") ||
 			strings.Contains(errStr, "eof") || strings.Contains(errStr, "closed") {
 			backoff := time.Duration(300*(attempt+1))*time.Millisecond + time.Duration(rand.Intn(300))*time.Millisecond
-			time.Sleep(backoff)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
 			continue
 		}
 
@@ -197,7 +210,7 @@ func (pf *ParallelFetcher) StreamMessageRange(
 		return nil
 	}
 
-	concurrency := 16
+	concurrency := 8
 	if envVal := os.Getenv("DOWNLOAD_THREADS"); envVal != "" {
 		if val, err := strconv.Atoi(envVal); err == nil && val > 0 {
 			concurrency = val
@@ -207,14 +220,16 @@ func (pf *ParallelFetcher) StreamMessageRange(
 		concurrency = numTasks
 	}
 
-	taskChan := make(chan chunkTask, numTasks)
-	for _, t := range tasks {
-		taskChan <- t
+	// Bounded in-flight buffer (sliding window): max 8 chunks in memory (~8 MiB)
+	maxInFlight := concurrency + 4
+	if maxInFlight > numTasks {
+		maxInFlight = numTasks
 	}
-	close(taskChan)
 
-	resChan := make(chan chunkResult, numTasks)
+	taskChan := make(chan chunkTask, maxInFlight)
+	resChan := make(chan chunkResult, maxInFlight)
 
+	var locMu sync.RWMutex
 	var refreshMu sync.Mutex
 	var lastRefreshed time.Time
 
@@ -232,11 +247,9 @@ func (pf *ParallelFetcher) StreamMessageRange(
 			return fmt.Errorf("failed to refresh document reference: %w", err)
 		}
 
-		if newDocLoc, ok := newLoc.(*tg.InputDocumentFileLocation); ok {
-			if oldDocLoc, ok := location.(*tg.InputDocumentFileLocation); ok {
-				oldDocLoc.FileReference = newDocLoc.FileReference
-			}
-		}
+		locMu.Lock()
+		location = newLoc
+		locMu.Unlock()
 
 		lastRefreshed = time.Now()
 		return nil
@@ -245,31 +258,63 @@ func (pf *ParallelFetcher) StreamMessageRange(
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Feeder goroutine: feeds tasks to workers with backpressure
+	go func() {
+		defer close(taskChan)
+		for _, t := range tasks {
+			select {
+			case <-workerCtx.Done():
+				return
+			case taskChan <- t:
+			}
+		}
+	}()
+
+	// Worker goroutines with panic recovery
 	for i := 0; i < concurrency; i++ {
-		go func() {
-			workerBot := bot
+		workerBot, bErr := pf.pool.GetNextAvailable(botTokens, int(apiID), apiHash)
+		if bErr != nil || workerBot == nil {
+			workerBot = bot
+		}
+
+		go func(wBot *pool.BotSession) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[ParallelFetcher] Worker panic recovered: %v\n%s", r, debug.Stack())
+				}
+			}()
+
 			for t := range taskChan {
 				select {
 				case <-workerCtx.Done():
-					resChan <- chunkResult{index: t.index, err: workerCtx.Err()}
 					return
 				default:
 				}
 
-				workerBot.Touch()
-				b, err := getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
+				locMu.RLock()
+				loc := location
+				locMu.RUnlock()
+
+				wBot.Touch()
+				b, err := getFileWithRetry(workerCtx, wBot.API, loc, t.offset, t.limit)
 				if err != nil {
 					errStr := err.Error()
 					if strings.Contains(errStr, "FILE_REFERENCE_EXPIRED") || strings.Contains(errStr, "FILE_REFERENCE_INVALID") {
 						if rErr := refreshFileReference(); rErr == nil {
-							b, err = getFileWithRetry(workerCtx, workerBot.API, location, t.offset, t.limit)
+							locMu.RLock()
+							loc = location
+							locMu.RUnlock()
+							b, err = getFileWithRetry(workerCtx, wBot.API, loc, t.offset, t.limit)
 						}
 					}
 				}
 
 				if err != nil {
 					cancel()
-					resChan <- chunkResult{index: t.index, err: fmt.Errorf("chunk at offset %d failed: %w", t.offset, err)}
+					select {
+					case resChan <- chunkResult{index: t.index, err: fmt.Errorf("chunk at offset %d failed: %w", t.offset, err)}:
+					case <-workerCtx.Done():
+					}
 					return
 				}
 
@@ -282,14 +327,21 @@ func (pf *ParallelFetcher) StreamMessageRange(
 					chunkEnd = t.offset + chunkSize - 1
 				}
 
+				bLen := int64(len(b))
 				sliceStart := chunkStart - t.offset
 				sliceEnd := chunkEnd - t.offset + 1
 
 				if sliceStart < 0 {
 					sliceStart = 0
 				}
-				if sliceEnd > int64(len(b)) {
-					sliceEnd = int64(len(b))
+				if sliceStart > bLen {
+					sliceStart = bLen
+				}
+				if sliceEnd > bLen {
+					sliceEnd = bLen
+				}
+				if sliceEnd < sliceStart {
+					sliceEnd = sliceStart
 				}
 
 				var trimmed []byte
@@ -297,16 +349,27 @@ func (pf *ParallelFetcher) StreamMessageRange(
 					trimmed = b[int(sliceStart):int(sliceEnd)]
 				}
 
-				resChan <- chunkResult{index: t.index, data: trimmed}
+				select {
+				case resChan <- chunkResult{index: t.index, data: trimmed}:
+				case <-workerCtx.Done():
+					return
+				}
 			}
-		}()
+		}(workerBot)
 	}
 
 	results := make(map[int][]byte)
 	nextToStream := 0
 
 	for i := 0; i < numTasks; i++ {
-		res := <-resChan
+		var res chunkResult
+		select {
+		case <-ctx.Done():
+			cancel()
+			return ctx.Err()
+		case res = <-resChan:
+		}
+
 		if res.err != nil {
 			cancel()
 			return res.err
@@ -338,3 +401,4 @@ func (pf *ParallelFetcher) StreamMessageRange(
 
 	return nil
 }
+

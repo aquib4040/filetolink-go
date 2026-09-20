@@ -41,6 +41,7 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 	peer := toInputPeer(chatID)
 	workloads := bm.pool.GetWorkloads()
 	uptimeStr := formatReadableTime(int64(time.Since(bm.uptime).Seconds()))
+	stats := GetAppResourceStats()
 
 	totalWorkload := int32(0)
 	var workloadItems strings.Builder
@@ -51,12 +52,19 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 
 	statusText := fmt.Sprintf("✅ <b>System Status:</b> Operational\n\n"+
 		"<blockquote>🕒 <b>Uptime:</b> <code>%s</code>\n"+
+		"🧠 <b>App RAM:</b> <code>%s / %s (%.1f%%)</code>\n"+
+		"📊 <b>Heap Alloc:</b> <code>%s</code>\n"+
+		"⚡ <b>App CPU:</b> <code>%.1f%%</code>\n"+
 		"🤖 <b>Bot Instances:</b> <code>%d</code>\n"+
-		"📊 <b>Total Workload:</b> <code>%d</code></blockquote>\n\n"+
+		"📈 <b>Total Workload:</b> <code>%d</code></blockquote>\n\n"+
 		"📜 <b>Workload Distribution:</b>\n\n"+
 		"%s\n"+
 		"<blockquote>♻️ <b>Version:</b> <code>1.0.0</code></blockquote>",
-		uptimeStr, len(workloads), totalWorkload, workloadItems.String())
+		uptimeStr,
+		humanBytes(stats.AppRSSBytes), humanBytes(stats.DynoLimitBytes), stats.RAMPercent,
+		humanBytes(int64(stats.HeapAllocBytes)),
+		stats.CPUPercent,
+		len(workloads), totalWorkload, workloadItems.String())
 
 	var rows [][]tg.KeyboardButtonClass
 	rows = append(rows, []tg.KeyboardButtonClass{

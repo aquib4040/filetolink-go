@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,7 +109,7 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", s.cfg.BindAddress, s.cfg.Port),
-		Handler:      enableCORS(s.rateLimitMiddleware(mux)),
+		Handler:      enableCORS(panicRecoveryMiddleware(s.rateLimitMiddleware(mux))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 0, // Streaming responses must not have a write timeout
 		IdleTimeout:  120 * time.Second,
@@ -125,6 +126,18 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func panicRecoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rErr := recover(); rErr != nil {
+				log.Printf("[HTTPServer Panic Recovered] %s %s: %v\n%s", r.Method, r.URL.Path, rErr, debug.Stack())
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *HTTPServer) rateLimitMiddleware(next http.Handler) http.Handler {

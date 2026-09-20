@@ -66,23 +66,14 @@ func (bm *BotManager) handleLinkCommand(
 
 	targetMsg := msgs[0]
 
-	// Forward media to BIN_CHANNEL
-	_ = bm.ResolveChannelAccessHash(ctx, bm.cfg.BinChannel)
-	binPeer := toInputPeer(bm.cfg.BinChannel)
-	fwdRes, err := bm.api.MessagesForwardMessages(ctx, &tg.MessagesForwardMessagesRequest{
-		FromPeer:   peer,
-		ToPeer:     binPeer,
-		ID:         []int{targetMsg.ID},
-		RandomID:   []int64{getRandomID()},
-		DropAuthor: true,
-	})
+	// Forward media to BIN_CHANNEL with rate limit and FLOOD_WAIT protection
+	fwdMsgID, fwdMsg, err := bm.ForwardToBinWithFloodWait(ctx, peer, targetMsg.ID)
 	if err != nil {
-		return bm.sendText(ctx, peer, "❌ Failed to store media in storage channel.")
+		return bm.sendText(ctx, peer, "❌ Failed to store media in storage channel: "+err.Error())
 	}
-
-	fwdMsgID := extractMsgID(fwdRes)
-	if fwdMsgID == 0 {
-		return bm.sendText(ctx, peer, "❌ Failed to resolve storage coordinates.")
+	binPeer := toInputPeer(bm.cfg.BinChannel)
+	if fwdMsg != nil {
+		targetMsg = fwdMsg
 	}
 
 	fileName, fileSize, _ := extractMediaInfo(targetMsg)
