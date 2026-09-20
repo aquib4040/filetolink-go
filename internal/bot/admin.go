@@ -52,8 +52,7 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 
 	statusText := fmt.Sprintf("✅ <b>System Status:</b> Operational\n\n"+
 		"<blockquote>🕒 <b>Uptime:</b> <code>%s</code>\n"+
-		"🧠 <b>App RAM:</b> <code>%s / %s (%.1f%%)</code>\n"+
-		"📊 <b>Heap Alloc:</b> <code>%s</code>\n"+
+		"🧠 <b>App RAM:</b> <code>%s</code>\n"+
 		"⚡ <b>App CPU:</b> <code>%.1f%%</code>\n"+
 		"🤖 <b>Bot Instances:</b> <code>%d</code>\n"+
 		"📈 <b>Total Workload:</b> <code>%d</code></blockquote>\n\n"+
@@ -61,8 +60,7 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 		"%s\n"+
 		"<blockquote>♻️ <b>Version:</b> <code>1.0.0</code></blockquote>",
 		uptimeStr,
-		humanBytes(stats.AppRSSBytes), humanBytes(stats.DynoLimitBytes), stats.RAMPercent,
-		humanBytes(int64(stats.HeapAllocBytes)),
+		humanBytes(stats.AppRSSBytes),
 		stats.CPUPercent,
 		len(workloads), totalWorkload, workloadItems.String())
 
