@@ -82,8 +82,8 @@ Designed for efficiency, FileToLink-Go consumes an ultra-low memory footprint (~
 
 ### 🌐 Streaming & Media Player
 - **RFC 7233 Byte-Range Support**: Seamless seeking, pause, resume, and multi-connection acceleration with IDM, aria2, and VLC.
-- **Interactive Dark-Mode Web Player**: Built-in HTML5 media player supporting custom aspect ratios and subtitles.
-- **On-the-Fly Audio & Subtitle Remuxing**: Powered by an optional FFmpeg pipeline allowing users to dynamically switch audio tracks and subtitles directly in the browser.
+- **Interactive Dark-Mode Web Player**: Modern client-side media player powered by Movi Player (WebCodecs + FFmpeg WASM).
+- **Client-Side Multi-Track Switching**: Seamlessly switch between multiple embedded audio tracks and subtitle tracks (including stylized ASS/SSA via JASSUB) directly in the browser with zero server transcoding.
 
 ### 🛡️ Smart Bot Features & Resilience
 - **Interactive About & Help Panels**: Fully navigable inline keyboard system with Back (`⬅️ Back`) and Close (`❌ Close`) actions.

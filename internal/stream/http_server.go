@@ -91,7 +91,6 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/reel_random", s.handleReelRandom)
 	mux.HandleFunc("/api/generate_link", s.handleAPIGenerateLink)
 	mux.HandleFunc("/api/file_stream_url", s.handleAPIGenerateLink)
-	mux.HandleFunc("/api/tracks/", s.handleAPITracks)
 	mux.HandleFunc("/stats", s.handleStats)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/favicon.ico")
@@ -210,7 +209,7 @@ func (s *HTTPServer) getClientIP(r *http.Request) string {
 }
 
 // -----------------------------------------------------------------------------
-// /watch/{token} Handler: Web Player or On-the-Fly FFmpeg Remux
+// /watch/{token} Handler: Universal Web Player (Client-Side WASM / WebCodecs)
 // -----------------------------------------------------------------------------
 
 func (s *HTTPServer) handleWatch(w http.ResponseWriter, r *http.Request) {
@@ -232,44 +231,26 @@ func (s *HTTPServer) handleWatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := queryValues(r.URL.Query())
-	audioStr := q.getOrDefault("audio", "-1")
-	subStr := q.getOrDefault("sub", "-1")
-	ssStr := q.getOrDefault("ss", "0")
-
-	audioIdx, _ := strconv.Atoi(audioStr)
-	subIdx, _ := strconv.Atoi(subStr)
-	seekSec, _ := strconv.ParseFloat(ssStr, 64)
-
-	// If audio or sub switching or seek is requested, trigger FFmpeg on-the-fly remux
-	if audioIdx >= 0 || subIdx >= 0 || seekSec > 0 {
-		localStreamURL := fmt.Sprintf("http://127.0.0.1:%d/dl/%s", s.cfg.Port, token)
-		err := StreamRemuxWithFFmpeg(r.Context(), w, localStreamURL, audioIdx, subIdx, seekSec, payload.FileName)
-		if err != nil {
-			log.Printf("[FFmpeg Remux] Error: %v", err)
-		}
-		return
-	}
-
-	// Otherwise, render dark-mode responsive Plyr web player template
+	// Render the Movi Player template — all demuxing, track switching,
+	// and subtitle rendering happens client-side via WASM.
 	if s.templates != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := map[string]interface{}{
-			"file_name":  payload.FileName,
-			"src":        fmt.Sprintf("/dl/%s", token),
-			"tracks_url": fmt.Sprintf("/api/tracks/%s", token),
-			"token":      token,
+			"file_name": payload.FileName,
+			"src":       fmt.Sprintf("/dl/%s", token),
+			"token":     token,
 		}
 		if err := s.templates.ExecuteTemplate(w, "req.html", data); err == nil {
 			return
 		}
 	}
 
-	// Fallback simple HTML player if template execution fails
+	// Fallback: Movi Player loaded directly if template execution fails
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html><html><head><title>%s</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;background:#090a0f;display:flex;align-items:center;justify-content:center;height:100vh;">
-<video controls autoplay style="max-width:100%%;max-height:100%%;" src="/dl/%s"></video>
+<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh;">
+<script type="module" src="https://cdn.jsdelivr.net/npm/movi-player/dist/element.js"></script>
+<movi-player src="/dl/%s" controls autoplay style="width:100%%;height:100%%"></movi-player>
 </body></html>`, template.HTMLEscapeString(payload.FileName), token)
 }
 
@@ -534,44 +515,7 @@ func (s *HTTPServer) handleAPIGenerateLink(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// -----------------------------------------------------------------------------
-// REST API: GET /api/tracks/{token}
-// -----------------------------------------------------------------------------
 
-func (s *HTTPServer) handleAPITracks(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimPrefix(r.URL.Path, "/api/tracks/")
-	token = strings.TrimPrefix(token, "/")
-	if token == "" {
-		http.Error(w, "Missing token", http.StatusBadRequest)
-		return
-	}
-
-	q := r.URL.Query()
-	subStr := q.Get("sub")
-	if subStr != "" {
-		subIdx, _ := strconv.Atoi(subStr)
-		localStreamURL := fmt.Sprintf("http://127.0.0.1:%d/dl/%s", s.cfg.Port, token)
-		_ = StreamSubtitleTrack(r.Context(), w, localStreamURL, subIdx, q.Get("format"))
-		return
-	}
-
-	localStreamURL := fmt.Sprintf("http://127.0.0.1:%d/dl/%s", s.cfg.Port, token)
-	tracks, err := ProbeMediaTracks(r.Context(), localStreamURL)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"tracks":  tracks,
-	})
-}
 
 // -----------------------------------------------------------------------------
 // /stats Endpoint: Real-Time Stream & Traffic Tracking
@@ -632,15 +576,6 @@ func (s *HTTPServer) handleReelRandom(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type queryValues url.Values
-
-func (q queryValues) getOrDefault(key, def string) string {
-	v := url.Values(q).Get(key)
-	if v == "" {
-		return def
-	}
-	return v
-}
 
 // Helper to suppress unused errors
 var _ = io.Copy

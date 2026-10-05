@@ -20,7 +20,7 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata ffmpeg
+RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /build/filetolink-go /app/filetolink-go
 COPY web/ /app/web/
