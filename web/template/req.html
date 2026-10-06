@@ -233,6 +233,24 @@
             outline: none;
         }
 
+        /* Cinema-Grade Crisp Subtitles */
+        movi-player::part(subtitle),
+        ::part(subtitle) {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-weight: 600 !important;
+            font-size: clamp(16px, 2.3vw, 24px) !important;
+            line-height: 1.38 !important;
+            color: #ffffff !important;
+            text-shadow:
+                -1.5px -1.5px 0 #000,
+                 1.5px -1.5px 0 #000,
+                -1.5px  1.5px 0 #000,
+                 1.5px  1.5px 0 #000,
+                 0 2px 4px rgba(0, 0, 0, 0.95),
+                 0 0 10px rgba(0, 0, 0, 0.8) !important;
+            letter-spacing: 0.25px !important;
+        }
+
         #nativeFallback {
             width: 100%;
             height: 100%;
@@ -1253,8 +1271,6 @@
          ═══════════════════════════════════════════════════════ -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/movi-player/dist/element.js"></script>
 
-    <!-- JASSUB - ASS/SSA Subtitle Canvas Renderer for Styled Anime Subs -->
-    <script src="https://cdn.jsdelivr.net/npm/jassub/dist/jassub.umd.js" defer></script>
 
     <script>
     (function() {
@@ -1301,6 +1317,19 @@
 
         function unlockAudio() {
             try {
+                // Resume WebAudio AudioContext if suspended (resolves browser autoplay policy)
+                const renderer = player.player?.audioRenderer;
+                if (renderer?.audioContext && renderer.audioContext.state === 'suspended') {
+                    renderer.audioContext.resume().then(function() {
+                        console.log('[AudioContext] Resumed WebAudio context successfully');
+                    }).catch(function(e) {
+                        console.warn('[AudioContext] Resume error:', e);
+                    });
+                }
+                if (player.player?.audioContext && player.player.audioContext.state === 'suspended') {
+                    player.player.audioContext.resume().catch(function() {});
+                }
+
                 // Programmatically trigger Movi internal unmute overlay if present in shadowRoot
                 if (player.shadowRoot) {
                     const overlay = player.shadowRoot.querySelector('.movi-unmute-overlay');
@@ -1327,11 +1356,14 @@
             } catch(e) {}
         }
 
-        // Catch the very first interaction anywhere to unlock audio immediately
+        // Catch user gestures across page and player to unlock audio immediately
         window.addEventListener('click', unlockAudio, { capture: true });
         window.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
         window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
         window.addEventListener('keydown', unlockAudio, { capture: true, passive: true });
+        player.addEventListener('play', unlockAudio);
+        player.addEventListener('playing', unlockAudio);
+        player.addEventListener('loadeddata', unlockAudio);
         if (stageWrapper) {
             stageWrapper.addEventListener('click', unlockAudio, { capture: true });
         }
@@ -1385,6 +1417,9 @@
                         }
 
                         if (target && target.id !== undefined) {
+                            if (player.player && typeof player.player.setSubtitleRenderer === 'function') {
+                                player.player.setSubtitleRenderer(null);
+                            }
                             if (typeof player.pickSubtitleTrack === 'function') {
                                 player.pickSubtitleTrack(target.id);
                             } else if (typeof innerPlayer.selectSubtitleTrack === 'function') {
@@ -1393,6 +1428,7 @@
                             if (typeof player.updateSubtitleTrackMenu === 'function') {
                                 player.updateSubtitleTrackMenu();
                             }
+                            injectSubtitleStyles();
                             subtitleSelected = true;
                             console.log('[Subtitle] Auto-selected MKV track:', target.label || target.id);
                             return;
@@ -1761,231 +1797,65 @@
             }
         });
 
-        // ─── WebAssembly libass (JASSUB) Subtitle Engine ───────
-        function createJassubWorkerUrl() {
-            try {
-                const code = "importScripts('https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js');";
-                const blob = new Blob([code], { type: 'application/javascript' });
-                return URL.createObjectURL(blob);
-            } catch(e) {
-                return 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js';
-            }
-        }
-
-        function createJassubSubtitleRenderer() {
-            let jassubInstance = null;
-            let canvasEl = null;
-            let containerEl = null;
-            let currentDelay = 0;
-            let activeWorkerUrl = null;
-
-            return {
-                mount: function(overlayEl) {
-                    containerEl = overlayEl;
-                    if (!containerEl) return;
-
-                    if (canvasEl && canvasEl.parentNode) {
-                        canvasEl.parentNode.removeChild(canvasEl);
-                    }
-
-                    canvasEl = document.createElement('canvas');
-                    canvasEl.className = 'jassub-canvas-overlay';
-                    canvasEl.style.position = 'absolute';
-                    canvasEl.style.top = '0';
-                    canvasEl.style.left = '0';
-                    canvasEl.style.width = '100%';
-                    canvasEl.style.height = '100%';
-                    canvasEl.style.pointerEvents = 'none';
-                    canvasEl.style.zIndex = '12';
-
-                    containerEl.appendChild(canvasEl);
-                },
-
-                setDelay: function(delaySec) {
-                    currentDelay = delaySec;
-                    if (jassubInstance && typeof jassubInstance.timeOffset !== 'undefined') {
-                        jassubInstance.timeOffset = delaySec;
-                    }
-                },
-
-                configure: function(track, extradata) {
-                    let headerText = '';
-                    if (extradata && extradata.length > 0) {
-                        try {
-                            headerText = new TextDecoder('utf-8').decode(extradata);
-                        } catch(e) {
-                            console.warn('[JASSUB] Could not decode extradata:', e);
-                        }
-                    }
-
-                    if (!headerText.includes('[Script Info]')) {
-                        headerText =
-                            '[Script Info]\n' +
-                            'Title: Stream Subtitles\n' +
-                            'ScriptType: v4.00+\n' +
-                            'WrapStyle: 0\n' +
-                            'ScaledBorderAndShadow: yes\n' +
-                            'PlayResX: 1920\n' +
-                            'PlayResY: 1080\n\n' +
-                            '[V4+ Styles]\n' +
-                            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n' +
-                            'Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1\n\n' +
-                            '[Events]\n' +
-                            'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
-                    }
-
-                    if (typeof JASSUB === 'undefined') {
-                        console.warn('[JASSUB] Library not ready during configure');
-                        return;
-                    }
-
-                    if (jassubInstance) {
-                        try {
-                            jassubInstance.setTrack(headerText);
-                            return;
-                        } catch(e) {
-                            try { jassubInstance.destroy(); } catch(x) {}
-                            jassubInstance = null;
-                        }
-                    }
-
-                    if (!canvasEl && containerEl) {
-                        this.mount(containerEl);
-                    }
-
-                    try {
-                        if (activeWorkerUrl) {
-                            try { URL.revokeObjectURL(activeWorkerUrl); } catch(x) {}
-                        }
-                        activeWorkerUrl = createJassubWorkerUrl();
-                        jassubInstance = new JASSUB({
-                            canvas: canvasEl,
-                            subContent: headerText,
-                            workerUrl: activeWorkerUrl,
-                            wasmUrl:   'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
-                            timeOffset: currentDelay
-                        });
-                        console.log('[JASSUB] WebAssembly libass initialized for track:', track ? (track.label || track.id) : 'default');
-                    } catch(err) {
-                        console.error('[JASSUB] Failed to initialize WebAssembly engine:', err);
-                    }
-                },
-
-                pushPacket: function(packet) {
-                    if (!packet || !packet.data || !jassubInstance) return;
-
-                    try {
-                        const raw = new TextDecoder('utf-8').decode(packet.data);
-                        let layer = 0;
-                        let style = 'Default';
-                        let name = '';
-                        let marginL = 0;
-                        let marginR = 0;
-                        let marginV = 0;
-                        let effect = '';
-                        let text = raw;
-
-                        if (raw.startsWith('Dialogue:')) {
-                            const parts = raw.substring(9).split(',');
-                            if (parts.length >= 9) {
-                                layer = parseInt(parts[0], 10) || 0;
-                                style = parts[3]?.trim() || 'Default';
-                                name = parts[4]?.trim() || '';
-                                marginL = parseInt(parts[5], 10) || 0;
-                                marginR = parseInt(parts[6], 10) || 0;
-                                marginV = parseInt(parts[7], 10) || 0;
-                                effect = parts[8]?.trim() || '';
-                                text = parts.slice(9).join(',');
-                            }
-                        } else {
-                            const parts = raw.split(',');
-                            if (parts.length >= 9) {
-                                layer = parseInt(parts[1], 10) || 0;
-                                style = parts[2]?.trim() || 'Default';
-                                name = parts[3]?.trim() || '';
-                                marginL = parseInt(parts[4], 10) || 0;
-                                marginR = parseInt(parts[5], 10) || 0;
-                                marginV = parseInt(parts[6], 10) || 0;
-                                effect = parts[7]?.trim() || '';
-                                text = parts.slice(8).join(',');
-                            }
-                        }
-
-                        const startMs = Math.round((packet.timestamp || 0) * 1000);
-                        const durationMs = Math.round((packet.duration || 3) * 1000);
-
-                        jassubInstance.createEvent({
-                            Start: startMs,
-                            Duration: durationMs,
-                            Layer: layer,
-                            Style: style,
-                            Name: name,
-                            MarginL: marginL,
-                            MarginR: marginR,
-                            MarginV: marginV,
-                            Effect: effect,
-                            Text: text
-                        });
-                    } catch(err) {
-                        console.warn('[JASSUB] pushPacket parse error:', err);
-                    }
-                },
-
-                render: function(time, width, height) {
-                    if (!jassubInstance) return;
-                    try {
-                        if (canvasEl && width > 0 && height > 0) {
-                            if (canvasEl.width !== width || canvasEl.height !== height) {
-                                canvasEl.width = width;
-                                canvasEl.height = height;
-                                jassubInstance.resize();
-                            }
-                        }
-                        const isPaused = player.paused || false;
-                        const rate = player.playbackRate || 1;
-                        jassubInstance.setCurrentTime(isPaused, time, rate);
-                    } catch(err) {}
-                },
-
-                clear: function() {
-                    // Flush buffer on seek
-                },
-
-                destroy: function() {
-                    if (jassubInstance) {
-                        try { jassubInstance.destroy(); } catch(e) {}
-                        jassubInstance = null;
-                    }
-                    if (canvasEl && canvasEl.parentNode) {
-                        canvasEl.parentNode.removeChild(canvasEl);
-                        canvasEl = null;
-                    }
-                    if (activeWorkerUrl) {
-                        try { URL.revokeObjectURL(activeWorkerUrl); } catch(x) {}
-                        activeWorkerUrl = null;
-                    }
+        // ─── Native WebAssembly Subtitle Presentation Engine ───
+        function injectSubtitleStyles() {
+            if (!player.shadowRoot) return;
+            if (player.shadowRoot.getElementById('canon-sub-style')) return;
+            const style = document.createElement('style');
+            style.id = 'canon-sub-style';
+            style.textContent = `
+                .movi-subtitle-overlay {
+                    pointer-events: none !important;
+                    z-index: 25 !important;
                 }
-            };
-        }
-
-        function hookJassubRenderer() {
-            if (typeof JASSUB === 'undefined') {
-                setTimeout(hookJassubRenderer, 350);
-                return;
-            }
-            try {
-                const renderer = createJassubSubtitleRenderer();
-                if (typeof player.setSubtitleRenderer === 'function') {
-                    player.setSubtitleRenderer(renderer);
-                    console.log('[Subtitle] Successfully attached WebAssembly libass (JASSUB) renderer to Movi Player');
+                .movi-subtitle-anchor {
+                    display: flex !important;
+                    justify-content: center !important;
+                    align-items: flex-end !important;
+                    width: 100% !important;
+                    padding-bottom: 24px !important;
                 }
-            } catch(err) {
-                console.warn('[Subtitle] JASSUB hook error:', err);
-            }
+                .movi-subtitle-block {
+                    display: inline-block !important;
+                    padding: 3px 12px !important;
+                    border-radius: 6px !important;
+                    background: rgba(10, 12, 20, 0.6) !important;
+                    backdrop-filter: blur(4px) !important;
+                    -webkit-backdrop-filter: blur(4px) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+                    max-width: 90% !important;
+                    text-align: center !important;
+                }
+                .movi-subtitle-line, [part="subtitle"] {
+                    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                    font-weight: 600 !important;
+                    font-size: clamp(16px, 2.3vw, 24px) !important;
+                    line-height: 1.38 !important;
+                    color: #ffffff !important;
+                    text-shadow:
+                        -1.5px -1.5px 0 #000,
+                         1.5px -1.5px 0 #000,
+                        -1.5px  1.5px 0 #000,
+                         1.5px  1.5px 0 #000,
+                         0 2px 4px rgba(0, 0, 0, 0.95),
+                         0 0 10px rgba(0, 0, 0, 0.8) !important;
+                    letter-spacing: 0.25px !important;
+                }
+            `;
+            player.shadowRoot.appendChild(style);
         }
 
-        hookJassubRenderer();
-        window.addEventListener('load', hookJassubRenderer);
+        // Keep native WebAssembly decoder active with zero third-party worker conflicts
+        injectSubtitleStyles();
+        player.addEventListener('loadedmetadata', function() {
+            if (player.player && typeof player.player.setSubtitleRenderer === 'function') {
+                player.player.setSubtitleRenderer(null);
+            }
+            injectSubtitleStyles();
+        });
+        player.addEventListener('loadeddata', injectSubtitleStyles);
+        player.addEventListener('playing', injectSubtitleStyles);
     })();
     </script>
 </body>
