@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>{{ .file_name }}</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#090a0f">
     <meta name="description" content="Canon FileToLink Stream — {{ .file_name }}">
     <meta property="og:title" content="{{ .file_name }}">
     <meta property="og:type" content="video.other">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,19 +21,25 @@
            Design Tokens (Cinema Dark Aesthetics)
            ═══════════════════════════════════════════════════════ */
         :root {
-            --bg: #000000;
-            --surface: rgba(255, 255, 255, 0.08);
-            --surface-hover: rgba(255, 255, 255, 0.16);
-            --surface-card: rgba(20, 20, 24, 0.85);
-            --border: rgba(255, 255, 255, 0.12);
+            --bg: #090a0f;
+            --surface: rgba(255, 255, 255, 0.06);
+            --surface-hover: rgba(255, 255, 255, 0.12);
+            --surface-card: #131622;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.22);
             --text: #f3f4f6;
             --text-muted: #9ca3af;
-            --accent: #e50914; /* Stream Red Accent */
+            --accent: #e50914; /* Canon Stream Red */
+            --accent-hover: #ff2230;
             --accent-glow: rgba(229, 9, 20, 0.35);
-            --blue-accent: #38bdf8;
-            --danger: #ef4444;
+            --vlc-orange: #ff7700;
+            --mx-blue: #0077ff;
+            --km-purple: #8b5cf6;
+            --pot-yellow: #eab308;
             --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
+            --radius-lg: 14px;
+            --radius-md: 10px;
             --ease: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -44,26 +50,175 @@
         }
 
         html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
+            min-height: 100%;
             background: var(--bg);
             color: var(--text);
             font-family: var(--font);
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            user-select: none;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.16);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.28);
         }
 
         /* ═══════════════════════════════════════════════════════
-           Player Stage & Layout
+           Navigation Header (Windowed Mode - Desktop & Mobile)
            ═══════════════════════════════════════════════════════ */
-        .player-stage {
-            position: fixed;
-            inset: 0;
-            width: 100vw;
-            height: 100vh;
-            background: var(--bg);
+        .site-header {
+            position: sticky;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            background: rgba(9, 10, 15, 0.90);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .action-btn {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: var(--surface);
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s var(--ease);
+            text-decoration: none;
+        }
+
+        .action-btn:hover {
+            background: var(--surface-hover);
+            border-color: var(--border-hover);
+            transform: scale(1.05);
+            color: #ffffff;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn svg {
+            width: 17px;
+            height: 17px;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 12px;
+            background: linear-gradient(135deg, rgba(229, 9, 20, 0.25) 0%, rgba(20, 23, 34, 0.88) 100%);
+            border: 1px solid rgba(229, 9, 20, 0.45);
+            border-radius: 9999px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(229, 9, 20, 0.2);
+        }
+
+        .brand-icon {
+            width: 14px;
+            height: 14px;
+            color: #ff3b47;
+            flex-shrink: 0;
+        }
+
+        .brand-text {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #ffffff;
+            white-space: nowrap;
+        }
+
+        .header-divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.12);
+            flex-shrink: 0;
+        }
+
+        .header-file-title {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 40vw;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           Main Watch Container (YouTube-Style Page Layout)
+           ═══════════════════════════════════════════════════════ */
+        .watch-container {
+            max-width: 1360px;
+            margin: 0 auto;
+            padding: 16px 20px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           Video Stage Container (Framed 16:9 in Windowed Mode)
+           ═══════════════════════════════════════════════════════ */
+        .video-stage-wrapper {
+            width: 100%;
+            background: #000;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .video-stage {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            max-height: calc(85vh - 65px);
+            background: #000;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -73,154 +228,135 @@
             width: 100%;
             height: 100%;
             display: block;
-            background: var(--bg);
+            background: #000;
             outline: none;
         }
 
-        /* Hide cursor when idle */
-        body.idle, body.idle * {
-            cursor: none !important;
+        #nativeFallback {
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: #000;
+        }
+        #nativeFallback.active {
+            display: block;
         }
 
         /* ═══════════════════════════════════════════════════════
-           Top Bar (Auto-Hiding Overlay)
+           Fullscreen Mode Styling & Floating Top Bar
            ═══════════════════════════════════════════════════════ */
-        .top-bar {
-            position: fixed;
+        .fullscreen-top-bar {
+            display: none;
+            position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            z-index: 100;
-            padding: 18px 24px;
+            z-index: 250;
+            padding: 16px 22px;
             background: linear-gradient(
                 180deg,
                 rgba(0, 0, 0, 0.90) 0%,
-                rgba(0, 0, 0, 0.55) 60%,
+                rgba(0, 0, 0, 0.45) 60%,
                 transparent 100%
             );
-            display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
+            gap: 12px;
             opacity: 0;
-            transform: translateY(-8px);
+            transform: translateY(-6px);
             transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
             pointer-events: none;
         }
 
-        .top-bar.visible {
+        /* Active fullscreen styling (Native API + CSS Pseudo-Fullscreen for Mobile Safari) */
+        :fullscreen #fullscreenTopBar,
+        :-webkit-full-screen #fullscreenTopBar,
+        .is-fullscreen #fullscreenTopBar {
+            display: flex;
+        }
+
+        :fullscreen #fullscreenTopBar.visible,
+        :-webkit-full-screen #fullscreenTopBar.visible,
+        .is-fullscreen #fullscreenTopBar.visible {
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
         }
 
-        .top-left {
+        :fullscreen .video-stage,
+        :-webkit-full-screen .video-stage,
+        .is-fullscreen .video-stage {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            aspect-ratio: auto !important;
+        }
+
+        :fullscreen .video-stage-wrapper,
+        :-webkit-full-screen .video-stage-wrapper,
+        .is-fullscreen .video-stage-wrapper {
+            border-radius: 0 !important;
+            border: none !important;
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 999999 !important;
+        }
+
+        body.is-fullscreen {
+            overflow: hidden !important;
+        }
+
+        body.is-fullscreen.idle,
+        body.is-fullscreen.idle * {
+            cursor: none !important;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           Video Metadata & Primary Actions (Under Video)
+           ═══════════════════════════════════════════════════════ */
+        .video-meta-section {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 0;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .title-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .file-title-large {
+            font-size: 19px;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.4;
+            word-break: break-word;
             flex: 1;
         }
 
-        .action-btn {
-            flex-shrink: 0;
-            width: 40px;
-            height: 40px;
-            border: 1px solid var(--border);
-            border-radius: 50%;
-            background: var(--surface);
-            color: var(--text);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            transition: all 0.2s var(--ease);
-            text-decoration: none;
-        }
-
-        .action-btn:hover {
-            background: var(--surface-hover);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: scale(1.06);
-            color: #ffffff;
-        }
-
-        .action-btn:active {
-            transform: scale(0.94);
-        }
-
-        .action-btn svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Canon FileToLink Stream Branding */
-        .brand-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 14px;
-            background: linear-gradient(135deg, rgba(229, 9, 20, 0.25) 0%, rgba(26, 26, 32, 0.85) 100%);
-            border: 1px solid rgba(229, 9, 20, 0.45);
-            border-radius: 9999px;
-            flex-shrink: 0;
-            box-shadow: 0 2px 12px rgba(229, 9, 20, 0.22);
-        }
-
-        .brand-icon {
-            width: 14px;
-            height: 14px;
-            color: #ff3344;
-            flex-shrink: 0;
-        }
-
-        .brand-text {
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.6px;
-            text-transform: uppercase;
-            color: #ffffff;
-            white-space: nowrap;
-        }
-
-        .title-divider {
-            width: 1px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.16);
-            flex-shrink: 0;
-        }
-
-        .title-wrapper {
+        .badges-row {
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-width: 0;
-        }
-
-        .file-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            letter-spacing: 0.1px;
-            max-width: 40vw;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .badge {
-            padding: 3px 8px;
+            padding: 3px 9px;
             border-radius: 6px;
             font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            background: rgba(255, 255, 255, 0.12);
+            letter-spacing: 0.6px;
+            background: rgba(255, 255, 255, 0.08);
             color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            white-space: nowrap;
         }
 
         .badge.mkv {
@@ -229,33 +365,271 @@
             border-color: rgba(229, 9, 20, 0.4);
         }
 
-        .badge.mp4 {
-            background: rgba(56, 189, 248, 0.15);
+        .badge.stream {
+            background: rgba(56, 189, 248, 0.14);
             color: #38bdf8;
-            border-color: rgba(56, 189, 248, 0.3);
+            border-color: rgba(56, 189, 248, 0.35);
         }
 
-        .top-right {
+        /* ═══════════════════════════════════════════════════════
+           YouTube-Style Touch-Friendly Action Pills Bar
+           ═══════════════════════════════════════════════════════ */
+        .action-pills-row {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 6px;
+            scrollbar-width: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .action-pills-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pill-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font);
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s var(--ease);
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-height: 38px;
+        }
+
+        .pill-btn:hover {
+            background: var(--surface-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+            color: #ffffff;
+        }
+
+        .pill-btn:active {
+            transform: scale(0.97);
+        }
+
+        .pill-btn.primary {
+            background: var(--accent);
+            color: #ffffff;
+            border-color: var(--accent);
+            box-shadow: 0 4px 14px var(--accent-glow);
+        }
+
+        .pill-btn.primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .pill-btn svg {
+            width: 16px;
+            height: 16px;
             flex-shrink: 0;
         }
 
         /* ═══════════════════════════════════════════════════════
-           Loading Screen (Minimalist Studio Spinner)
+           External Media Players Hub (Touch Optimized for Mobile)
+           ═══════════════════════════════════════════════════════ */
+        .external-players-section {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-title {
+            font-size: 15.5px;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-subtitle {
+            font-size: 12.5px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .player-card {
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text);
+            transition: all 0.2s var(--ease);
+            min-height: 54px;
+        }
+
+        .player-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .player-card:active {
+            transform: scale(0.98);
+        }
+
+        .player-card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .player-card-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .player-card-icon.vlc {
+            background: rgba(255, 119, 0, 0.16);
+            color: var(--vlc-orange);
+            border: 1px solid rgba(255, 119, 0, 0.35);
+        }
+
+        .player-card-icon.mx {
+            background: rgba(0, 119, 255, 0.16);
+            color: var(--mx-blue);
+            border: 1px solid rgba(0, 119, 255, 0.35);
+        }
+
+        .player-card-icon.km {
+            background: rgba(139, 92, 246, 0.16);
+            color: var(--km-purple);
+            border: 1px solid rgba(139, 92, 246, 0.35);
+        }
+
+        .player-card-icon.pot {
+            background: rgba(234, 179, 8, 0.16);
+            color: var(--pot-yellow);
+            border: 1px solid rgba(234, 179, 8, 0.35);
+        }
+
+        .player-card-icon.other {
+            background: rgba(56, 189, 248, 0.16);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+        }
+
+        .player-card-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .player-card-name {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-card-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           Stream URL Quick-Copy Box
+           ═══════════════════════════════════════════════════════ */
+        .stream-link-box {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stream-link-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .stream-link-copy-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .stream-link-copy-btn:hover {
+            background: var(--surface-hover);
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           Loading Screen
            ═══════════════════════════════════════════════════════ */
         .loading-screen {
-            position: fixed;
+            position: absolute;
             inset: 0;
-            z-index: 200;
-            background: var(--bg);
+            z-index: 100;
+            background: #000;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 24px;
-            transition: opacity 0.5s var(--ease), visibility 0.5s var(--ease);
+            gap: 16px;
+            transition: opacity 0.4s var(--ease), visibility 0.4s var(--ease);
         }
 
         .loading-screen.hidden {
@@ -265,8 +639,8 @@
         }
 
         .loader-ring {
-            width: 50px;
-            height: 50px;
+            width: 46px;
+            height: 46px;
             border: 3px solid rgba(255, 255, 255, 0.08);
             border-top-color: var(--accent);
             border-radius: 50%;
@@ -278,36 +652,26 @@
         }
 
         .loading-title {
-            font-size: 16px;
+            font-size: 14.5px;
             font-weight: 600;
-            letter-spacing: 0.2px;
             color: #ffffff;
-        }
-
-        .loading-hint {
-            font-size: 13px;
-            color: var(--text-muted);
-            max-width: 320px;
-            text-align: center;
-            line-height: 1.5;
-            transition: opacity 0.3s;
         }
 
         /* ═══════════════════════════════════════════════════════
            Error Screen
            ═══════════════════════════════════════════════════════ */
         .error-screen {
-            position: fixed;
+            position: absolute;
             inset: 0;
-            z-index: 150;
-            background: var(--bg);
+            z-index: 120;
+            background: #000;
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 18px;
+            gap: 16px;
             text-align: center;
-            padding: 32px;
+            padding: 24px;
         }
 
         .error-screen.visible {
@@ -315,75 +679,30 @@
         }
 
         .error-icon {
-            width: 54px;
-            height: 54px;
-            color: var(--danger);
-            margin-bottom: 6px;
+            width: 48px;
+            height: 48px;
+            color: #ef4444;
         }
 
         .error-screen h2 {
-            font-size: 22px;
+            font-size: 18px;
             font-weight: 600;
         }
 
         .error-screen p {
-            font-size: 14px;
+            font-size: 13.5px;
             color: var(--text-muted);
-            max-width: 440px;
-            line-height: 1.6;
+            max-width: 400px;
+            line-height: 1.5;
         }
 
         .error-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 6px;
             flex-wrap: wrap;
             justify-content: center;
-        }
-
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 22px;
-            background: var(--accent);
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            font-family: var(--font);
-            font-size: 14px;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-primary:hover {
-            background: #f40612;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 22px;
-            background: var(--surface);
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-family: var(--font);
-            font-size: 14px;
-            font-weight: 500;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-            background: var(--surface-hover);
-            border-color: rgba(255, 255, 255, 0.25);
         }
 
         /* ═══════════════════════════════════════════════════════
@@ -391,12 +710,12 @@
            ═══════════════════════════════════════════════════════ */
         .toast {
             position: fixed;
-            bottom: 36px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
-            z-index: 300;
-            background: rgba(24, 24, 28, 0.94);
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            z-index: 9999999;
+            background: rgba(19, 22, 34, 0.96);
+            border: 1px solid rgba(255, 255, 255, 0.18);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             color: #ffffff;
@@ -407,10 +726,12 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
             opacity: 0;
             pointer-events: none;
             transition: all 0.3s var(--ease);
+            max-width: 90vw;
+            text-align: center;
         }
 
         .toast.visible {
@@ -425,16 +746,17 @@
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            z-index: 250;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            z-index: 9999998;
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             display: flex;
             align-items: center;
             justify-content: center;
             opacity: 0;
             visibility: hidden;
             transition: all 0.25s var(--ease);
+            padding: 16px;
         }
 
         .modal-backdrop.visible {
@@ -443,12 +765,12 @@
         }
 
         .modal-card {
-            background: #141418;
+            background: var(--surface-card);
             border: 1px solid var(--border);
             border-radius: 16px;
-            width: 90%;
+            width: 100%;
             max-width: 480px;
-            padding: 24px;
+            padding: 22px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
             transform: scale(0.96);
             transition: transform 0.25s var(--ease);
@@ -462,11 +784,11 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .modal-header h3 {
-            font-size: 17px;
+            font-size: 16.5px;
             font-weight: 600;
             color: #ffffff;
         }
@@ -474,7 +796,7 @@
         .shortcut-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 8px;
         }
 
         .shortcut-row {
@@ -484,7 +806,7 @@
             background: rgba(255, 255, 255, 0.04);
             padding: 8px 12px;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 12px;
         }
 
         .shortcut-label {
@@ -493,33 +815,24 @@
 
         .shortcut-key {
             background: rgba(255, 255, 255, 0.12);
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 5px;
             font-family: var(--font-mono);
-            font-size: 12px;
+            font-size: 11px;
             color: #ffffff;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         /* ═══════════════════════════════════════════════════════
-           Native Fallback Video (Activated only if WASM fails)
-           ═══════════════════════════════════════════════════════ */
-        #nativeFallback {
-            width: 100%;
-            height: 100%;
-            background: var(--bg);
-            display: none;
-        }
-        #nativeFallback.active {
-            display: block;
-        }
-
-        /* ═══════════════════════════════════════════════════════
-           Responsive Design
+           Mobile Responsive Enhancements (Screen width <= 768px)
            ═══════════════════════════════════════════════════════ */
         @media (max-width: 768px) {
-            .top-bar {
-                padding: 12px 14px;
+            .site-header {
+                padding: 10px 14px;
+            }
+            .header-file-title,
+            .header-divider {
+                display: none;
             }
             .brand-badge {
                 padding: 4px 10px;
@@ -527,165 +840,392 @@
             .brand-text {
                 font-size: 11px;
             }
-            .file-title {
-                font-size: 13px;
-                max-width: 32vw;
+            .watch-container {
+                padding: 10px 12px 40px;
+                gap: 16px;
             }
-            .title-divider {
-                display: none;
+            .video-stage-wrapper {
+                border-radius: 8px;
             }
-            .action-btn {
-                width: 36px;
-                height: 36px;
+            .file-title-large {
+                font-size: 16px;
             }
-            .action-btn svg {
-                width: 16px;
-                height: 16px;
+            .players-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .player-card {
+                padding: 10px 10px;
+                gap: 8px;
+            }
+            .player-card-icon {
+                width: 32px;
+                height: 32px;
+            }
+            .player-card-icon svg {
+                width: 17px;
+                height: 17px;
+            }
+            .player-card-name {
+                font-size: 12.5px;
+            }
+            .player-card-desc {
+                font-size: 10px;
             }
             .shortcut-grid {
                 grid-template-columns: 1fr;
             }
-            .badge {
-                display: none;
-            }
         }
 
-        @supports (padding: max(0px)) {
-            .top-bar {
-                padding-top: max(16px, env(safe-area-inset-top));
-                padding-left: max(20px, env(safe-area-inset-left));
-                padding-right: max(20px, env(safe-area-inset-right));
+        /* Extra Small Screen Optimization (<= 480px, e.g. iPhone, compact Android) */
+        @media (max-width: 480px) {
+            .site-header {
+                padding: 8px 10px;
+            }
+            .brand-badge {
+                padding: 4px 8px;
+            }
+            .brand-text {
+                font-size: 10.5px;
+            }
+            .action-btn {
+                width: 34px;
+                height: 34px;
+            }
+            .action-btn svg {
+                width: 15px;
+                height: 15px;
+            }
+            .pill-btn {
+                padding: 7px 14px;
+                font-size: 12.5px;
+                min-height: 36px;
+            }
+            .players-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <!-- ═══════════ Loading Screen ═══════════ -->
-    <div class="loading-screen" id="loadingScreen">
-        <div class="loader-ring"></div>
-        <p class="loading-title">Loading Stream</p>
-        <p class="loading-hint" id="loadingHint">Initializing WebAssembly media engine…</p>
-    </div>
-
-    <!-- ═══════════ Error Screen ═══════════ -->
-    <div class="error-screen" id="errorScreen">
-        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <circle cx="12" cy="16" r="0.5" fill="currentColor"/>
-        </svg>
-        <h2>Playback Error</h2>
-        <p id="errorMsg">This video stream could not be loaded directly in your browser.</p>
-        <div class="error-actions">
-            <a href="/dl/{{ .token }}" class="btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+    <!-- ═══════════ Navigation Header (Windowed Mode) ═══════════ -->
+    <header class="site-header">
+        <div class="header-left">
+            <button class="action-btn" onclick="history.back()" title="Back" aria-label="Go back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
-                Download Video
-            </a>
-            <button class="btn-secondary" id="copyLinkErrBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            </button>
+            <div class="brand-badge">
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                <span class="brand-text">Canon Stream</span>
+            </div>
+            <div class="header-divider"></div>
+            <span class="header-file-title" title="{{ .file_name }}">{{ .file_name }}</span>
+        </div>
+
+        <div class="header-right">
+            <button class="action-btn" id="headerCopyBtn" title="Copy Stream URL" aria-label="Copy stream URL">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
                     <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
                 </svg>
-                Copy Direct URL
             </button>
-            <button class="btn-secondary" onclick="location.reload()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+            <a href="/dl/{{ .token }}" class="action-btn" title="Download File" aria-label="Download video">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
-                Retry
+            </a>
+            <button class="action-btn" id="headerShortcutsBtn" title="Keyboard Shortcuts (?)" aria-label="Keyboard shortcuts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
             </button>
         </div>
-    </div>
+    </header>
 
-    <!-- ═══════════ Video Player Stage ═══════════ -->
-    <div class="player-stage" id="playerStage">
-        <!-- Floating Top Bar -->
-        <div class="top-bar" id="topBar">
-            <div class="top-left">
-                <button class="action-btn" onclick="history.back()" title="Back" aria-label="Go back">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 12H5M12 19l-7-7 7-7"/>
-                    </svg>
-                </button>
-                <div class="brand-badge">
-                    <svg class="brand-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
-                    <span class="brand-text">Canon FileToLink Stream</span>
+    <!-- ═══════════ Main Watch Layout ═══════════ -->
+    <main class="watch-container">
+        <!-- 16:9 Video Stage Container -->
+        <div class="video-stage-wrapper" id="videoStageWrapper">
+            <div class="video-stage" id="videoStage">
+                <!-- Fullscreen Overlay Top Bar (Active in Fullscreen Mode) -->
+                <div class="fullscreen-top-bar" id="fullscreenTopBar">
+                    <div class="header-left">
+                        <button class="action-btn" id="exitFullscreenBtn" title="Exit Fullscreen">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                        <div class="brand-badge">
+                            <svg class="brand-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                            <span class="brand-text">Canon Stream</span>
+                        </div>
+                        <div class="header-divider"></div>
+                        <span class="header-file-title" title="{{ .file_name }}">{{ .file_name }}</span>
+                    </div>
+
+                    <div class="header-right">
+                        <button class="action-btn" id="fsCopyBtn" title="Copy Stream URL">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" id="fsVlcBtn" title="Open in VLC Player">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                                <line x1="19" y1="5" x2="19" y2="19"/>
+                            </svg>
+                        </button>
+                        <a href="/dl/{{ .token }}" class="action-btn" title="Download">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                            </svg>
+                        </a>
+                        <button class="action-btn" id="fsShortcutsBtn" title="Shortcuts">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div class="title-divider"></div>
-                <div class="title-wrapper">
-                    <span class="file-title" id="fileTitle" title="{{ .file_name }}">{{ .file_name }}</span>
+
+                <!-- Loading Screen -->
+                <div class="loading-screen" id="loadingScreen">
+                    <div class="loader-ring"></div>
+                    <p class="loading-title">Loading Stream</p>
+                </div>
+
+                <!-- Playback Error Screen -->
+                <div class="error-screen" id="errorScreen">
+                    <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <circle cx="12" cy="16" r="0.5" fill="currentColor"/>
+                    </svg>
+                    <h2>Playback Error</h2>
+                    <p id="errorMsg">This video stream could not be loaded directly in your browser.</p>
+                    <div class="error-actions">
+                        <a href="/dl/{{ .token }}" class="pill-btn primary">Download Video</a>
+                        <button class="pill-btn" id="errorCopyBtn">Copy Direct URL</button>
+                        <button class="pill-btn" onclick="location.reload()">Retry</button>
+                    </div>
+                </div>
+
+                <!-- Movi Player: Universal WebAssembly + WebCodecs Player
+                     - subtitlelang="eng,en,und,*" auto-activates MKV default/English subtitles
+                     - volume="1" audio unmuted by default
+                     - ambient mode, session persist, stable dynamic volume -->
+                <movi-player
+                    id="moviPlayer"
+                    src="{{ .src }}"
+                    controls
+                    autoplay
+                    ambient
+                    persist
+                    stablevolume
+                    resume
+                    subtitlelang="eng,en,und,*"
+                ></movi-player>
+
+                <!-- Native HTML5 Video fallback -->
+                <video id="nativeFallback" controls autoplay></video>
+            </div>
+        </div>
+
+        <!-- Video Metadata & Touch Action Bar -->
+        <section class="video-meta-section">
+            <div class="title-row">
+                <h1 class="file-title-large" id="fileTitleText">{{ .file_name }}</h1>
+                <div class="badges-row">
                     <span class="badge" id="formatBadge"></span>
+                    <span class="badge stream">⚡ HTTP 206 Stream</span>
+                    <span class="badge">Multi-Audio & Subs</span>
                 </div>
             </div>
 
-            <div class="top-right">
-                <!-- Copy Stream URL (Share) -->
-                <button class="action-btn" id="copyUrlBtn" title="Copy Stream URL" aria-label="Copy stream URL">
+            <!-- YouTube-Style Touch Action Pills Row (Scrolls smoothly on mobile) -->
+            <div class="action-pills-row">
+                <a href="/dl/{{ .token }}" class="pill-btn primary" title="Direct Download">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    <span>Download</span>
+                </a>
+
+                <button class="pill-btn" id="mainCopyBtn" title="Copy Direct Stream URL">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
                         <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
                     </svg>
+                    <span>Copy Link</span>
                 </button>
 
-                <!-- Open in External Player (VLC / MPV) -->
-                <button class="action-btn" id="openExternalBtn" title="Open in VLC / External Player" aria-label="Open in external player">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"/>
-                        <line x1="19" y1="5" x2="19" y2="19"/>
+                <button class="pill-btn" id="pillVlcBtn" title="Open in VLC Media Player">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L4 18h16L12 2zm0 4.5l4.5 9h-9l4.5-9zM2 20h20v2H2z"/>
                     </svg>
+                    <span>VLC Player</span>
                 </button>
 
-                <!-- Direct Download -->
-                <a href="/dl/{{ .token }}" class="action-btn" title="Download File" aria-label="Download video">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                <button class="pill-btn" id="pillMxBtn" title="Open in MX Player (Android)">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="7 4 19 12 7 20 7 4"/>
                     </svg>
-                </a>
+                    <span>MX Player</span>
+                </button>
 
-                <!-- Keyboard Shortcuts Help -->
-                <button class="action-btn" id="shortcutsBtn" title="Keyboard Shortcuts (?)" aria-label="Keyboard shortcuts">
+                <button class="pill-btn" id="toggleFsBtn" title="Enter Fullscreen">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>
+                    </svg>
+                    <span>Fullscreen</span>
+                </button>
+
+                <button class="pill-btn" id="mainShortcutsBtn" title="Keyboard Shortcuts">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"/>
                         <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
+                    <span>Shortcuts</span>
                 </button>
             </div>
-        </div>
+        </section>
 
-        <!-- Movi Player: Universal WebAssembly + WebCodecs Player
-             - Streams raw Telegram bytes via HTTP Range requests
-             - Full client-side demuxing (MKV, MP4, WebM, AVI, TS)
-             - Embedded audio & subtitle tracks selection
-             - Dynamic ambient glow mode (`ambient`)
-             - Settings persistence across sessions (`persist`)
-             - Audio dynamic loudness leveling (`stablevolume`)
-             - Resume playback position (`resume`) -->
-        <movi-player
-            id="moviPlayer"
-            src="{{ .src }}"
-            controls
-            autoplay
-            ambient
-            persist
-            stablevolume
-            resume
-        ></movi-player>
+        <!-- External Media Players Section -->
+        <section class="external-players-section">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Play in External Players
+                    </h2>
+                    <p class="section-subtitle">Tap to stream directly in mobile or desktop video players</p>
+                </div>
+            </div>
 
-        <!-- Native HTML5 Video fallback (if WASM unsupported) -->
-        <video id="nativeFallback" controls autoplay></video>
-    </div>
+            <!-- Players Cards Grid (Mobile Touch Friendly) -->
+            <div class="players-grid">
+                <!-- VLC Media Player -->
+                <div class="player-card" id="cardVLC" title="Open in VLC Media Player">
+                    <div class="player-card-icon vlc">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L4 18h16L12 2zm0 4.5l4.5 9h-9l4.5-9zM2 20h20v2H2z"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">VLC Player</span>
+                        <span class="player-card-desc">Desktop & Mobile</span>
+                    </div>
+                </div>
+
+                <!-- MX Player (Android) -->
+                <div class="player-card" id="cardMX" title="Open in MX Player (Android)">
+                    <div class="player-card-icon mx">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="7 4 19 12 7 20 7 4"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">MX Player</span>
+                        <span class="player-card-desc">Android App</span>
+                    </div>
+                </div>
+
+                <!-- MX Player Pro (Android) -->
+                <div class="player-card" id="cardMXPro" title="Open in MX Player Pro (Android)">
+                    <div class="player-card-icon mx">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="7 4 19 12 7 20 7 4"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">MX Player Pro</span>
+                        <span class="player-card-desc">Android Pro</span>
+                    </div>
+                </div>
+
+                <!-- KMPlayer -->
+                <div class="player-card" id="cardKM" title="Open in KMPlayer">
+                    <div class="player-card-icon km">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4h4v16H4zm6 8l8-8v16l-8-8z"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">KMPlayer</span>
+                        <span class="player-card-desc">Mobile & PC</span>
+                    </div>
+                </div>
+
+                <!-- PotPlayer (Windows) -->
+                <div class="player-card" id="cardPot" title="Open in Daum PotPlayer">
+                    <div class="player-card-icon pot">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polygon points="10 8 16 12 10 16 10 8" fill="#141722"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">PotPlayer</span>
+                        <span class="player-card-desc">Windows PC</span>
+                    </div>
+                </div>
+
+                <!-- nPlayer (iOS & Android) -->
+                <div class="player-card" id="cardNPlayer" title="Open in nPlayer">
+                    <div class="player-card-icon other">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4h4v8l8-8h4v16h-4v-8l-8 8H4z"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">nPlayer</span>
+                        <span class="player-card-desc">iOS & Android</span>
+                    </div>
+                </div>
+
+                <!-- MPV / IINA -->
+                <div class="player-card" id="cardMPV" title="Copy mpv command">
+                    <div class="player-card-icon other">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 17 10 11 4 5"/>
+                            <line x1="12" y1="19" x2="20" y2="19"/>
+                        </svg>
+                    </div>
+                    <div class="player-card-info">
+                        <span class="player-card-name">MPV / IINA</span>
+                        <span class="player-card-desc">Copy CLI command</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direct Stream URL Quick Box -->
+            <div class="stream-link-box">
+                <input type="text" class="stream-link-input" id="streamUrlInput" readonly value="{{ .src }}">
+                <button class="stream-link-copy-btn" id="boxCopyBtn">Copy URL</button>
+            </div>
+        </section>
+    </main>
 
     <!-- ═══════════ Toast Notification ═══════════ -->
     <div class="toast" id="toast">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"/>
         </svg>
-        <span id="toastMsg">Direct link copied to clipboard</span>
+        <span id="toastMsg">Stream URL copied to clipboard</span>
     </div>
 
     <!-- ═══════════ Shortcuts Modal ═══════════ -->
@@ -747,7 +1287,6 @@
 
     <!-- ═══════════════════════════════════════════════════════
          Movi Player WASM Engine (Full All-In-One Bundle)
-         Contains complete FFmpeg WASM demuxers + WebCodecs HW decoders
          ═══════════════════════════════════════════════════════ -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/movi-player/dist/element.js"></script>
 
@@ -759,70 +1298,124 @@
         'use strict';
 
         const player       = document.getElementById('moviPlayer');
+        const stageWrapper = document.getElementById('videoStageWrapper');
+        const stage        = document.getElementById('videoStage');
         const loading      = document.getElementById('loadingScreen');
-        const loadingHint  = document.getElementById('loadingHint');
         const errorScreen  = document.getElementById('errorScreen');
         const errorMsg     = document.getElementById('errorMsg');
-        const topBar       = document.getElementById('topBar');
-        const stage        = document.getElementById('playerStage');
+        const fsTopBar     = document.getElementById('fullscreenTopBar');
         const formatBadge  = document.getElementById('formatBadge');
         const nativeFB     = document.getElementById('nativeFallback');
-        const fileTitle    = document.getElementById('fileTitle');
-        const copyBtn      = document.getElementById('copyUrlBtn');
-        const copyErrBtn   = document.getElementById('copyLinkErrBtn');
-        const externalBtn  = document.getElementById('openExternalBtn');
-        const shortcutsBtn = document.getElementById('shortcutsBtn');
+        const fileTitle    = document.getElementById('fileTitleText');
+        const streamInput  = document.getElementById('streamUrlInput');
         const modal        = document.getElementById('shortcutsModal');
         const closeModal   = document.getElementById('closeModalBtn');
         const toast        = document.getElementById('toast');
         const toastMsg     = document.getElementById('toastMsg');
 
         const videoSrc     = '{{ .src }}';
-        const streamUrl    = window.location.origin + videoSrc;
+        const fullStreamUrl = window.location.origin + videoSrc;
+        if (streamInput) streamInput.value = fullStreamUrl;
 
         let idleTimer      = null;
         let toastTimer     = null;
         let playerReady    = false;
 
+        // ─── Audio Unmuted & Active by Default ─────────────────
+        player.volume = 1;
+        player.muted = false;
+
+        function unlockAudio() {
+            try {
+                if (player.muted) {
+                    player.muted = false;
+                }
+                player.volume = 1;
+            } catch(e) {}
+        }
+
+        // Catch the very first interaction to unlock browser AudioContext immediately
+        window.addEventListener('click', unlockAudio, { capture: true });
+        window.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
+        window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+        window.addEventListener('keydown', unlockAudio, { capture: true, passive: true });
+
         // ─── Format Badge Setup ────────────────────────────────
-        const fileName = (fileTitle.textContent || '').trim();
+        const fileName = (fileTitle ? fileTitle.textContent : '').trim();
         const parts = fileName.split('.');
         if (parts.length > 1) {
             const ext = parts.pop().toUpperCase();
             if (['MKV', 'MP4', 'WEBM', 'AVI', 'MOV', 'TS', 'FLV'].includes(ext)) {
                 formatBadge.textContent = ext;
                 formatBadge.className = 'badge ' + ext.toLowerCase();
+            } else {
+                formatBadge.textContent = ext;
             }
         }
+
+        // ─── Auto-Select Default MKV Subtitles ─────────────────
+        function autoSelectSubtitle() {
+            try {
+                const tracks = player.textTracks;
+                if (!tracks || tracks.length === 0) return;
+
+                // Check if any subtitle track is already active
+                for (let i = 0; i < tracks.length; i++) {
+                    if (tracks[i].mode === 'showing') return;
+                }
+
+                // Prefer English, default, or track 0
+                let targetIndex = -1;
+                for (let i = 0; i < tracks.length; i++) {
+                    const t = tracks[i];
+                    const lang = (t.language || '').toLowerCase();
+                    const label = (t.label || '').toLowerCase();
+                    if (t.default || lang.startsWith('en') || label.includes('eng') || label.includes('sub')) {
+                        targetIndex = i;
+                        break;
+                    }
+                }
+
+                if (targetIndex === -1 && tracks.length > 0) {
+                    targetIndex = 0;
+                }
+
+                if (targetIndex >= 0 && tracks[targetIndex]) {
+                    tracks[targetIndex].mode = 'showing';
+                    console.log('[Subtitle] Auto-activated default track:', tracks[targetIndex].label || targetIndex);
+                }
+            } catch(e) {
+                console.warn('[Subtitle] Auto-selection error:', e);
+            }
+        }
+
+        if (player.textTracks) {
+            player.textTracks.addEventListener('addtrack', autoSelectSubtitle);
+        }
+        player.addEventListener('loadedmetadata', autoSelectSubtitle);
+        player.addEventListener('canplay', autoSelectSubtitle);
+        player.addEventListener('playing', function() {
+            unlockAudio();
+            autoSelectSubtitle();
+        });
 
         // ─── Loading Lifecycle ─────────────────────────────────
         function dismissLoading() {
             if (playerReady) return;
             playerReady = true;
             loading.classList.add('hidden');
-            showControls();
         }
 
         player.addEventListener('loadeddata', dismissLoading);
         player.addEventListener('canplay',    dismissLoading);
         player.addEventListener('playing',    dismissLoading);
 
-        setTimeout(function() {
-            if (!playerReady) loadingHint.textContent = 'Demuxing audio & subtitle tracks…';
-        }, 3000);
-        setTimeout(function() {
-            if (!playerReady) loadingHint.textContent = 'Hardware decoding via WebCodecs…';
-        }, 7000);
-        setTimeout(function() {
-            if (!playerReady) loadingHint.textContent = 'Buffering stream via HTTP Range requests…';
-        }, 14000);
-
         // Native fallback check after 18 seconds if WASM does not start
         setTimeout(function() {
             if (!playerReady) {
                 var hasInit = player.shadowRoot || player.readyState > 0;
                 if (!hasInit) {
-                    console.warn('[Player] Movi WASM element not ready, switching to native fallback');
+                    console.warn('[Player] Movi WASM element did not initialize, falling back to native');
                     player.style.display = 'none';
                     nativeFB.src = videoSrc;
                     nativeFB.classList.add('active');
@@ -830,7 +1423,7 @@
                     nativeFB.addEventListener('canplay', dismissLoading);
                     nativeFB.addEventListener('error', function() {
                         dismissLoading();
-                        errorMsg.textContent = 'Browser cannot play this video codec natively. Please download the file or stream via VLC.';
+                        errorMsg.textContent = 'Browser cannot play this video codec natively. Please download the file or stream via an external player (VLC, MX Player).';
                         errorScreen.classList.add('visible');
                     });
                 }
@@ -845,37 +1438,105 @@
             errorScreen.classList.add('visible');
         });
 
-        // ─── Auto-Hide Overlays ────────────────────────────────
-        function showControls() {
-            topBar.classList.add('visible');
-            document.body.classList.remove('idle');
-            clearTimeout(idleTimer);
-            idleTimer = setTimeout(hideControls, 3500);
+        // ─── Fullscreen Management (Host Handoff & Auto-Hide) ──
+        function isFullscreenActive() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement || document.body.classList.contains('is-fullscreen'));
         }
 
-        function hideControls() {
+        function showFsControls() {
+            if (!isFullscreenActive()) return;
+            fsTopBar.classList.add('visible');
+            document.body.classList.remove('idle');
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(hideFsControls, 3500);
+        }
+
+        function hideFsControls() {
+            if (!isFullscreenActive()) return;
             try {
                 if (player.paused) return;
             } catch(e) {}
             if (modal.classList.contains('visible')) return;
 
-            topBar.classList.remove('visible');
+            fsTopBar.classList.remove('visible');
             document.body.classList.add('idle');
         }
 
-        stage.addEventListener('mousemove', showControls);
-        stage.addEventListener('touchstart', showControls, { passive: true });
-
-        player.addEventListener('pause', function() {
-            topBar.classList.add('visible');
-            document.body.classList.remove('idle');
-            clearTimeout(idleTimer);
+        stageWrapper.addEventListener('mousemove', showFsControls);
+        stageWrapper.addEventListener('touchstart', showFsControls, { passive: true });
+        stageWrapper.addEventListener('click', function(e) {
+            if (isFullscreenActive()) {
+                if (fsTopBar.classList.contains('visible')) {
+                    // if user taps already visible bar, keep it or toggle
+                    showFsControls();
+                } else {
+                    showFsControls();
+                }
+            }
         });
-        player.addEventListener('play', function() {
-            idleTimer = setTimeout(hideControls, 3500);
+
+        function handleFullscreenChange() {
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            if (isFs) {
+                document.body.classList.add('is-fullscreen');
+                showFsControls();
+            } else if (!document.body.classList.contains('css-pseudo-fs')) {
+                document.body.classList.remove('is-fullscreen', 'idle');
+                fsTopBar.classList.remove('visible');
+                clearTimeout(idleTimer);
+            }
+        }
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+        function toggleFullscreen() {
+            if (isFullscreenActive()) {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(function(){});
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+                document.body.classList.remove('is-fullscreen', 'css-pseudo-fs', 'idle');
+                fsTopBar.classList.remove('visible');
+            } else {
+                // Try Fullscreen API on videoStageWrapper first (contains video + top bar overlay)
+                const elem = stageWrapper;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen().then(function() {
+                        document.body.classList.add('is-fullscreen');
+                        showFsControls();
+                    }).catch(function() {
+                        fallbackPseudoFullscreen();
+                    });
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                    document.body.classList.add('is-fullscreen');
+                    showFsControls();
+                } else {
+                    fallbackPseudoFullscreen();
+                }
+            }
+        }
+
+        function fallbackPseudoFullscreen() {
+            // Mobile iOS Safari CSS-based pseudo fullscreen fallback
+            document.body.classList.add('is-fullscreen', 'css-pseudo-fs');
+            showFsControls();
+            showToast('Entered Fullscreen');
+        }
+
+        // Host Fullscreen Handoff from Movi Player's internal fullscreen button
+        player.addEventListener('movi-fullscreen-request', function(e) {
+            e.preventDefault();
+            toggleFullscreen();
         });
 
-        showControls();
+        const toggleFsBtn = document.getElementById('toggleFsBtn');
+        if (toggleFsBtn) toggleFsBtn.addEventListener('click', toggleFullscreen);
+
+        const exitFsBtn = document.getElementById('exitFullscreenBtn');
+        if (exitFsBtn) exitFsBtn.addEventListener('click', toggleFullscreen);
 
         // ─── Toast Notifications ───────────────────────────────
         function showToast(msg) {
@@ -887,44 +1548,112 @@
             }, 3000);
         }
 
-        // ─── Copy Link Action ──────────────────────────────────
+        // ─── Copy Link Actions ─────────────────────────────────
         function copyStreamLink() {
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(streamUrl).then(function() {
-                    showToast('Direct stream URL copied to clipboard');
+                navigator.clipboard.writeText(fullStreamUrl).then(function() {
+                    showToast('Stream URL copied to clipboard');
                 }).catch(function() {
-                    showToast('Stream URL: ' + streamUrl);
+                    showToast('Stream URL: ' + fullStreamUrl);
                 });
             } else {
-                showToast('Stream URL: ' + streamUrl);
+                showToast('Stream URL: ' + fullStreamUrl);
             }
         }
-        copyBtn.addEventListener('click', copyStreamLink);
-        if (copyErrBtn) copyErrBtn.addEventListener('click', copyStreamLink);
 
-        // ─── External Player (VLC / MPV) ───────────────────────
-        externalBtn.addEventListener('click', function() {
+        ['headerCopyBtn', 'mainCopyBtn', 'fsCopyBtn', 'boxCopyBtn', 'errorCopyBtn'].forEach(function(id) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', copyStreamLink);
+        });
+
+        // ─── External Media Player Launcher Handlers ───────────
+        function launchExternalPlayer(scheme, androidPackage, appName) {
             copyStreamLink();
-            window.location.href = 'vlc://' + streamUrl;
-            showToast('Opening in VLC (URL also copied)');
+            const isAndroid = /Android/i.test(navigator.userAgent);
+
+            if (isAndroid && androidPackage) {
+                // Direct Android Intent to target player app
+                const intentUrl = 'intent:' + fullStreamUrl + '#Intent;package=' + androidPackage + ';type=video/*;end';
+                window.location.href = intentUrl;
+            } else {
+                // Custom URI scheme
+                window.location.href = scheme + fullStreamUrl;
+            }
+            showToast('Opening in ' + appName + ' (URL copied)');
+        }
+
+        // VLC Handlers
+        function launchVLC() {
+            launchExternalPlayer('vlc://', 'org.videolan.vlc', 'VLC Media Player');
+        }
+        const cardVLC = document.getElementById('cardVLC');
+        if (cardVLC) cardVLC.addEventListener('click', launchVLC);
+        const pillVlc = document.getElementById('pillVlcBtn');
+        if (pillVlc) pillVlc.addEventListener('click', launchVLC);
+        const fsVlc = document.getElementById('fsVlcBtn');
+        if (fsVlc) fsVlc.addEventListener('click', launchVLC);
+
+        // MX Player Handlers
+        function launchMX() {
+            launchExternalPlayer('intent:' + fullStreamUrl + '#Intent;package=com.mxtech.videoplayer.ad;type=video/*;end', 'com.mxtech.videoplayer.ad', 'MX Player');
+        }
+        const cardMX = document.getElementById('cardMX');
+        if (cardMX) cardMX.addEventListener('click', launchMX);
+        const pillMx = document.getElementById('pillMxBtn');
+        if (pillMx) pillMx.addEventListener('click', launchMX);
+
+        // MX Player Pro
+        const cardMXPro = document.getElementById('cardMXPro');
+        if (cardMXPro) cardMXPro.addEventListener('click', function() {
+            launchExternalPlayer('intent:' + fullStreamUrl + '#Intent;package=com.mxtech.videoplayer.pro;type=video/*;end', 'com.mxtech.videoplayer.pro', 'MX Player Pro');
+        });
+
+        // KMPlayer
+        const cardKM = document.getElementById('cardKM');
+        if (cardKM) cardKM.addEventListener('click', function() {
+            launchExternalPlayer('kmplayer://', 'com.kmplayer', 'KMPlayer');
+        });
+
+        // PotPlayer (Windows)
+        const cardPot = document.getElementById('cardPot');
+        if (cardPot) cardPot.addEventListener('click', function() {
+            launchExternalPlayer('potplayer://', null, 'PotPlayer');
+        });
+
+        // nPlayer (iOS & Android)
+        const cardNPlayer = document.getElementById('cardNPlayer');
+        if (cardNPlayer) cardNPlayer.addEventListener('click', function() {
+            launchExternalPlayer('nplayer-', 'com.newin.nplayer.pro', 'nPlayer');
+        });
+
+        // MPV / IINA (Copy CLI Command)
+        const cardMPV = document.getElementById('cardMPV');
+        if (cardMPV) cardMPV.addEventListener('click', function() {
+            const cmd = 'mpv "' + fullStreamUrl + '"';
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(cmd).then(function() {
+                    showToast('Copied: mpv "' + fullStreamUrl + '"');
+                });
+            } else {
+                showToast('CLI: mpv "' + fullStreamUrl + '"');
+            }
         });
 
         // ─── Shortcuts Modal ───────────────────────────────────
         function toggleModal(open) {
             if (open) {
                 modal.classList.add('visible');
-                showControls();
             } else {
                 modal.classList.remove('visible');
             }
         }
 
-        shortcutsBtn.addEventListener('click', function() {
-            toggleModal(true);
+        ['headerShortcutsBtn', 'mainShortcutsBtn', 'fsShortcutsBtn'].forEach(function(id) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', function() { toggleModal(true); });
         });
-        closeModal.addEventListener('click', function() {
-            toggleModal(false);
-        });
+
+        if (closeModal) closeModal.addEventListener('click', function() { toggleModal(false); });
         modal.addEventListener('click', function(e) {
             if (e.target === modal) toggleModal(false);
         });
@@ -944,7 +1673,15 @@
                 return;
             }
 
-            showControls();
+            if (e.key.toLowerCase() === 'f') {
+                e.preventDefault();
+                toggleFullscreen();
+                return;
+            }
+
+            if (isFullscreenActive()) {
+                showFsControls();
+            }
         });
 
         // ─── JASSUB Hook for Styled SSA/ASS Subtitles ───────────
