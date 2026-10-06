@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>{{ .file_name }}</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <meta name="theme-color" content="#090a0f">
-    <meta name="description" content="Canon FileToLink Stream — {{ .file_name }}">
+    <meta name="theme-color" content="#0b0d14">
+    <meta name="description" content="Canon FileToLink Stream - {{ .file_name }}">
     <meta property="og:title" content="{{ .file_name }}">
     <meta property="og:type" content="video.other">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,19 +14,19 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <style>
         /* ═══════════════════════════════════════════════════════
            Design Tokens (Cinema Dark Aesthetics)
            ═══════════════════════════════════════════════════════ */
         :root {
-            --bg: #090a0f;
-            --surface: rgba(255, 255, 255, 0.06);
-            --surface-hover: rgba(255, 255, 255, 0.12);
-            --surface-card: #131622;
+            --bg: #0b0d14;
+            --surface: rgba(255, 255, 255, 0.05);
+            --surface-hover: rgba(255, 255, 255, 0.10);
+            --surface-card: #121520;
             --border: rgba(255, 255, 255, 0.08);
-            --border-hover: rgba(255, 255, 255, 0.22);
+            --border-hover: rgba(255, 255, 255, 0.18);
             --text: #f3f4f6;
             --text-muted: #9ca3af;
             --accent: #e50914; /* Canon Stream Red */
@@ -36,10 +36,11 @@
             --mx-blue: #0077ff;
             --km-purple: #8b5cf6;
             --pot-yellow: #eab308;
-            --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
             --radius-lg: 14px;
             --radius-md: 10px;
+            --radius-pill: 9999px;
             --ease: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -324,51 +325,19 @@
 
         .title-row {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 14px;
-            flex-wrap: wrap;
         }
 
         .file-title-large {
-            font-size: 19px;
+            font-size: 20px;
             font-weight: 600;
             color: #ffffff;
-            line-height: 1.4;
+            line-height: 1.35;
             word-break: break-word;
             flex: 1;
-        }
-
-        .badges-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .badge {
-            padding: 3px 9px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            white-space: nowrap;
-        }
-
-        .badge.mkv {
-            background: rgba(229, 9, 20, 0.2);
-            color: #ff4d4d;
-            border-color: rgba(229, 9, 20, 0.4);
-        }
-
-        .badge.stream {
-            background: rgba(56, 189, 248, 0.14);
-            color: #38bdf8;
-            border-color: rgba(56, 189, 248, 0.35);
+            letter-spacing: -0.01em;
         }
 
         /* ═══════════════════════════════════════════════════════
@@ -1022,19 +991,18 @@
                 </div>
 
                 <!-- Movi Player: Universal WebAssembly + WebCodecs Player
-                     - subtitlelang="eng,en,und,*" auto-activates MKV default/English subtitles
+                     - subtitlelang="eng" auto-activates MKV default/English subtitles
                      - volume="1" audio unmuted by default
-                     - ambient mode, session persist, stable dynamic volume -->
+                     - ambient mode, resume playback, stable dynamic volume -->
                 <movi-player
                     id="moviPlayer"
                     src="{{ .src }}"
                     controls
                     autoplay
                     ambient
-                    persist
                     stablevolume
                     resume
-                    subtitlelang="eng,en,und,*"
+                    subtitlelang="eng"
                 ></movi-player>
 
                 <!-- Native HTML5 Video fallback -->
@@ -1046,11 +1014,6 @@
         <section class="video-meta-section">
             <div class="title-row">
                 <h1 class="file-title-large" id="fileTitleText">{{ .file_name }}</h1>
-                <div class="badges-row">
-                    <span class="badge" id="formatBadge"></span>
-                    <span class="badge stream">⚡ HTTP 206 Stream</span>
-                    <span class="badge">Multi-Audio & Subs</span>
-                </div>
             </div>
 
             <!-- YouTube-Style Touch Action Pills Row (Scrolls smoothly on mobile) -->
@@ -1290,7 +1253,7 @@
          ═══════════════════════════════════════════════════════ -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/movi-player/dist/element.js"></script>
 
-    <!-- JASSUB — ASS/SSA Subtitle Canvas Renderer for Styled Anime Subs -->
+    <!-- JASSUB - ASS/SSA Subtitle Canvas Renderer for Styled Anime Subs -->
     <script src="https://cdn.jsdelivr.net/npm/jassub/dist/jassub.umd.js" defer></script>
 
     <script>
@@ -1304,7 +1267,6 @@
         const errorScreen  = document.getElementById('errorScreen');
         const errorMsg     = document.getElementById('errorMsg');
         const fsTopBar     = document.getElementById('fullscreenTopBar');
-        const formatBadge  = document.getElementById('formatBadge');
         const nativeFB     = document.getElementById('nativeFallback');
         const fileTitle    = document.getElementById('fileTitleText');
         const streamInput  = document.getElementById('streamUrlInput');
@@ -1321,71 +1283,173 @@
         let toastTimer     = null;
         let playerReady    = false;
 
+        // ─── Reset Storage for Subtitles ───────────────────────
+        // Clear any stored "off" preference so MKV default subtitles are not suppressed
+        try {
+            localStorage.removeItem('movi-player-subtitlelang');
+            localStorage.removeItem('movi:subtitlelang');
+            sessionStorage.removeItem('movi-player-subtitlelang');
+            sessionStorage.removeItem('movi:subtitlelang');
+        } catch(e) {}
+
         // ─── Audio Unmuted & Active by Default ─────────────────
         player.volume = 1;
         player.muted = false;
+        try {
+            player.removeAttribute('muted');
+        } catch(e) {}
 
         function unlockAudio() {
             try {
-                if (player.muted) {
-                    player.muted = false;
+                // Programmatically trigger Movi internal unmute overlay if present in shadowRoot
+                if (player.shadowRoot) {
+                    const overlay = player.shadowRoot.querySelector('.movi-unmute-overlay');
+                    if (overlay && overlay.style.display !== 'none') {
+                        overlay.click();
+                    }
                 }
+                player._userHasUnmuted = true;
+                player._autoMutedForAutoplay = false;
+                player.muted = false;
                 player.volume = 1;
+                player.removeAttribute('muted');
+                if (player.player) {
+                    if (typeof player.player.setMuted === 'function') {
+                        player.player.setMuted(false);
+                    }
+                    if (typeof player.player.setVolume === 'function') {
+                        player.player.setVolume(1);
+                    }
+                }
+                if (typeof player.updateVolume === 'function') {
+                    player.updateVolume();
+                }
             } catch(e) {}
         }
 
-        // Catch the very first interaction to unlock browser AudioContext immediately
+        // Catch the very first interaction anywhere to unlock audio immediately
         window.addEventListener('click', unlockAudio, { capture: true });
         window.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
         window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
         window.addEventListener('keydown', unlockAudio, { capture: true, passive: true });
-
-        // ─── Format Badge Setup ────────────────────────────────
-        const fileName = (fileTitle ? fileTitle.textContent : '').trim();
-        const parts = fileName.split('.');
-        if (parts.length > 1) {
-            const ext = parts.pop().toUpperCase();
-            if (['MKV', 'MP4', 'WEBM', 'AVI', 'MOV', 'TS', 'FLV'].includes(ext)) {
-                formatBadge.textContent = ext;
-                formatBadge.className = 'badge ' + ext.toLowerCase();
-            } else {
-                formatBadge.textContent = ext;
-            }
+        if (stageWrapper) {
+            stageWrapper.addEventListener('click', unlockAudio, { capture: true });
         }
 
         // ─── Auto-Select Default MKV Subtitles ─────────────────
+        let subtitleSelected = false;
+
         function autoSelectSubtitle() {
+            if (subtitleSelected) return;
             try {
-                const tracks = player.textTracks;
-                if (!tracks || tracks.length === 0) return;
+                // 1. Check Movi Player internal demuxer trackManager
+                const innerPlayer = player.player;
+                if (innerPlayer) {
+                    const activeTrack = innerPlayer.trackManager && typeof innerPlayer.trackManager.getActiveSubtitleTrack === 'function'
+                        ? innerPlayer.trackManager.getActiveSubtitleTrack()
+                        : null;
+                    if (activeTrack) {
+                        subtitleSelected = true;
+                        return;
+                    }
 
-                // Check if any subtitle track is already active
-                for (let i = 0; i < tracks.length; i++) {
-                    if (tracks[i].mode === 'showing') return;
-                }
+                    const tracks = typeof innerPlayer.getSubtitleTracks === 'function' ? innerPlayer.getSubtitleTracks() : [];
+                    if (tracks && tracks.length > 0) {
+                        let target = null;
 
-                // Prefer English, default, or track 0
-                let targetIndex = -1;
-                for (let i = 0; i < tracks.length; i++) {
-                    const t = tracks[i];
-                    const lang = (t.language || '').toLowerCase();
-                    const label = (t.label || '').toLowerCase();
-                    if (t.default || lang.startsWith('en') || label.includes('eng') || label.includes('sub')) {
-                        targetIndex = i;
-                        break;
+                        // Priority 1: Default track with English language/label
+                        target = tracks.find(function(t) {
+                            const l = (t.language || t.lang || '').toLowerCase();
+                            const b = (t.label || '').toLowerCase();
+                            const isDef = !!(t.default || t.isDefault);
+                            return isDef && (l === 'eng' || l.startsWith('en') || b.includes('eng') || b.includes('english'));
+                        });
+
+                        // Priority 2: Any track flagged default in MKV container
+                        if (!target) {
+                            target = tracks.find(function(t) { return !!(t.default || t.isDefault); });
+                        }
+
+                        // Priority 3: English track by language or label (matches ENG in animeshrine.xyz ENG Text)
+                        if (!target) {
+                            target = tracks.find(function(t) {
+                                const l = (t.language || t.lang || '').toLowerCase();
+                                const b = (t.label || '').toLowerCase();
+                                return l === 'eng' || l.startsWith('en') || b.includes('eng') || b.includes('english');
+                            });
+                        }
+
+                        // Priority 4: Fallback to the first track in container
+                        if (!target) {
+                            target = tracks[0];
+                        }
+
+                        if (target && target.id !== undefined) {
+                            if (typeof player.pickSubtitleTrack === 'function') {
+                                player.pickSubtitleTrack(target.id);
+                            } else if (typeof innerPlayer.selectSubtitleTrack === 'function') {
+                                innerPlayer.selectSubtitleTrack(target.id);
+                            }
+                            if (typeof player.updateSubtitleTrackMenu === 'function') {
+                                player.updateSubtitleTrackMenu();
+                            }
+                            subtitleSelected = true;
+                            console.log('[Subtitle] Auto-selected MKV track:', target.label || target.id);
+                            return;
+                        }
                     }
                 }
 
-                if (targetIndex === -1 && tracks.length > 0) {
-                    targetIndex = 0;
+                // 2. Check shadowRoot context menu items if rendered
+                if (player.shadowRoot) {
+                    const subItems = player.shadowRoot.querySelectorAll('.movi-context-menu-item[data-subtitle-track-id]');
+                    if (subItems && subItems.length > 1) {
+                        for (let i = 0; i < subItems.length; i++) {
+                            const item = subItems[i];
+                            const trackId = item.getAttribute('data-subtitle-track-id');
+                            if (trackId !== '-1' && trackId !== 'null') {
+                                const text = item.textContent.toLowerCase();
+                                if (text.includes('eng') || text.includes('english')) {
+                                    const parsedId = parseInt(trackId, 10);
+                                    if (typeof player.pickSubtitleTrack === 'function') {
+                                        player.pickSubtitleTrack(parsedId);
+                                    }
+                                    subtitleSelected = true;
+                                    console.log('[Subtitle] Auto-selected from menu element:', text);
+                                    return;
+                                }
+                            }
+                        }
+                    }
                 }
 
-                if (targetIndex >= 0 && tracks[targetIndex]) {
-                    tracks[targetIndex].mode = 'showing';
-                    console.log('[Subtitle] Auto-activated default track:', tracks[targetIndex].label || targetIndex);
+                // 3. Fallback to HTML5 TextTracks
+                const textTracks = player.textTracks;
+                if (textTracks && textTracks.length > 0) {
+                    for (let i = 0; i < textTracks.length; i++) {
+                        if (textTracks[i].mode === 'showing') {
+                            subtitleSelected = true;
+                            return;
+                        }
+                    }
+                    let targetIdx = 0;
+                    for (let i = 0; i < textTracks.length; i++) {
+                        const t = textTracks[i];
+                        const l = (t.language || '').toLowerCase();
+                        const b = (t.label || '').toLowerCase();
+                        if (t.default || l === 'eng' || l.startsWith('en') || b.includes('eng')) {
+                            targetIdx = i;
+                            break;
+                        }
+                    }
+                    if (textTracks[targetIdx]) {
+                        textTracks[targetIdx].mode = 'showing';
+                        subtitleSelected = true;
+                        console.log('[Subtitle] Enabled textTrack:', textTracks[targetIdx].label || targetIdx);
+                    }
                 }
             } catch(e) {
-                console.warn('[Subtitle] Auto-selection error:', e);
+                console.warn('[Subtitle] Auto-selection attempt:', e);
             }
         }
 
@@ -1393,11 +1457,24 @@
             player.textTracks.addEventListener('addtrack', autoSelectSubtitle);
         }
         player.addEventListener('loadedmetadata', autoSelectSubtitle);
-        player.addEventListener('canplay', autoSelectSubtitle);
+        player.addEventListener('loadeddata',     autoSelectSubtitle);
+        player.addEventListener('canplay',        autoSelectSubtitle);
         player.addEventListener('playing', function() {
             unlockAudio();
             autoSelectSubtitle();
         });
+        player.addEventListener('subtitletrackchange', function() {
+            if (player.player?.trackManager?.getActiveSubtitleTrack?.()) {
+                subtitleSelected = true;
+            }
+        });
+
+        // Periodic check during demuxing initialization (runs every 250ms for first 8s)
+        const subCheckTimer = setInterval(function() {
+            autoSelectSubtitle();
+            if (subtitleSelected) clearInterval(subCheckTimer);
+        }, 250);
+        setTimeout(function() { clearInterval(subCheckTimer); }, 8000);
 
         // ─── Loading Lifecycle ─────────────────────────────────
         function dismissLoading() {
@@ -1684,29 +1761,212 @@
             }
         });
 
-        // ─── JASSUB Hook for Styled SSA/ASS Subtitles ───────────
-        function setupJassub() {
-            if (typeof JASSUB === 'undefined') return;
-            try {
-                if (player.subtitleRenderer !== undefined) {
-                    player.subtitleRenderer = {
-                        create: function(video, track) {
-                            return new JASSUB({
-                                video: video,
-                                subContent: track.data,
-                                workerUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js',
-                                wasmUrl:   'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
-                            });
+        // ─── WebAssembly libass (JASSUB) Subtitle Engine ───────
+        function createJassubSubtitleRenderer() {
+            let jassubInstance = null;
+            let canvasEl = null;
+            let containerEl = null;
+            let currentDelay = 0;
+
+            return {
+                mount: function(overlayEl) {
+                    containerEl = overlayEl;
+                    if (!containerEl) return;
+
+                    if (canvasEl && canvasEl.parentNode) {
+                        canvasEl.parentNode.removeChild(canvasEl);
+                    }
+
+                    canvasEl = document.createElement('canvas');
+                    canvasEl.className = 'jassub-canvas-overlay';
+                    canvasEl.style.position = 'absolute';
+                    canvasEl.style.top = '0';
+                    canvasEl.style.left = '0';
+                    canvasEl.style.width = '100%';
+                    canvasEl.style.height = '100%';
+                    canvasEl.style.pointerEvents = 'none';
+                    canvasEl.style.zIndex = '12';
+
+                    containerEl.appendChild(canvasEl);
+                },
+
+                setDelay: function(delaySec) {
+                    currentDelay = delaySec;
+                    if (jassubInstance && typeof jassubInstance.timeOffset !== 'undefined') {
+                        jassubInstance.timeOffset = delaySec;
+                    }
+                },
+
+                configure: function(track, extradata) {
+                    let headerText = '';
+                    if (extradata && extradata.length > 0) {
+                        try {
+                            headerText = new TextDecoder('utf-8').decode(extradata);
+                        } catch(e) {
+                            console.warn('[JASSUB] Could not decode extradata:', e);
                         }
-                    };
+                    }
+
+                    if (!headerText.includes('[Script Info]')) {
+                        headerText =
+                            '[Script Info]\n' +
+                            'Title: Stream Subtitles\n' +
+                            'ScriptType: v4.00+\n' +
+                            'WrapStyle: 0\n' +
+                            'ScaledBorderAndShadow: yes\n' +
+                            'PlayResX: 1920\n' +
+                            'PlayResY: 1080\n\n' +
+                            '[V4+ Styles]\n' +
+                            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n' +
+                            'Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1\n\n' +
+                            '[Events]\n' +
+                            'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+                    }
+
+                    if (typeof JASSUB === 'undefined') {
+                        console.warn('[JASSUB] Library not ready during configure');
+                        return;
+                    }
+
+                    if (jassubInstance) {
+                        try {
+                            jassubInstance.setTrack(headerText);
+                            return;
+                        } catch(e) {
+                            try { jassubInstance.destroy(); } catch(x) {}
+                            jassubInstance = null;
+                        }
+                    }
+
+                    if (!canvasEl && containerEl) {
+                        this.mount(containerEl);
+                    }
+
+                    try {
+                        jassubInstance = new JASSUB({
+                            canvas: canvasEl,
+                            subContent: headerText,
+                            workerUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js',
+                            wasmUrl:   'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
+                            timeOffset: currentDelay
+                        });
+                        console.log('[JASSUB] WebAssembly libass initialized for track:', track ? (track.label || track.id) : 'default');
+                    } catch(err) {
+                        console.error('[JASSUB] Failed to initialize WebAssembly engine:', err);
+                    }
+                },
+
+                pushPacket: function(packet) {
+                    if (!packet || !packet.data || !jassubInstance) return;
+
+                    try {
+                        const raw = new TextDecoder('utf-8').decode(packet.data);
+                        let layer = 0;
+                        let style = 'Default';
+                        let name = '';
+                        let marginL = 0;
+                        let marginR = 0;
+                        let marginV = 0;
+                        let effect = '';
+                        let text = raw;
+
+                        if (raw.startsWith('Dialogue:')) {
+                            const parts = raw.substring(9).split(',');
+                            if (parts.length >= 9) {
+                                layer = parseInt(parts[0], 10) || 0;
+                                style = parts[3]?.trim() || 'Default';
+                                name = parts[4]?.trim() || '';
+                                marginL = parseInt(parts[5], 10) || 0;
+                                marginR = parseInt(parts[6], 10) || 0;
+                                marginV = parseInt(parts[7], 10) || 0;
+                                effect = parts[8]?.trim() || '';
+                                text = parts.slice(9).join(',');
+                            }
+                        } else {
+                            const parts = raw.split(',');
+                            if (parts.length >= 9) {
+                                layer = parseInt(parts[1], 10) || 0;
+                                style = parts[2]?.trim() || 'Default';
+                                name = parts[3]?.trim() || '';
+                                marginL = parseInt(parts[4], 10) || 0;
+                                marginR = parseInt(parts[5], 10) || 0;
+                                marginV = parseInt(parts[6], 10) || 0;
+                                effect = parts[7]?.trim() || '';
+                                text = parts.slice(8).join(',');
+                            }
+                        }
+
+                        const startMs = Math.round((packet.timestamp || 0) * 1000);
+                        const durationMs = Math.round((packet.duration || 3) * 1000);
+
+                        jassubInstance.createEvent({
+                            Start: startMs,
+                            Duration: durationMs,
+                            Layer: layer,
+                            Style: style,
+                            Name: name,
+                            MarginL: marginL,
+                            MarginR: marginR,
+                            MarginV: marginV,
+                            Effect: effect,
+                            Text: text
+                        });
+                    } catch(err) {
+                        console.warn('[JASSUB] pushPacket parse error:', err);
+                    }
+                },
+
+                render: function(time, width, height) {
+                    if (!jassubInstance) return;
+                    try {
+                        if (canvasEl && width > 0 && height > 0) {
+                            if (canvasEl.width !== width || canvasEl.height !== height) {
+                                canvasEl.width = width;
+                                canvasEl.height = height;
+                                jassubInstance.resize();
+                            }
+                        }
+                        const isPaused = player.paused || false;
+                        const rate = player.playbackRate || 1;
+                        jassubInstance.setCurrentTime(isPaused, time, rate);
+                    } catch(err) {}
+                },
+
+                clear: function() {
+                    // Flush buffer on seek
+                },
+
+                destroy: function() {
+                    if (jassubInstance) {
+                        try { jassubInstance.destroy(); } catch(e) {}
+                        jassubInstance = null;
+                    }
+                    if (canvasEl && canvasEl.parentNode) {
+                        canvasEl.parentNode.removeChild(canvasEl);
+                        canvasEl = null;
+                    }
                 }
-            } catch (err) {
-                console.warn('[JASSUB] Could not hook custom renderer:', err.message);
+            };
+        }
+
+        function hookJassubRenderer() {
+            if (typeof JASSUB === 'undefined') {
+                setTimeout(hookJassubRenderer, 350);
+                return;
+            }
+            try {
+                const renderer = createJassubSubtitleRenderer();
+                if (typeof player.setSubtitleRenderer === 'function') {
+                    player.setSubtitleRenderer(renderer);
+                    console.log('[Subtitle] Successfully attached WebAssembly libass (JASSUB) renderer to Movi Player');
+                }
+            } catch(err) {
+                console.warn('[Subtitle] JASSUB hook error:', err);
             }
         }
 
-        setTimeout(setupJassub, 2000);
-        window.addEventListener('load', setupJassub);
+        hookJassubRenderer();
+        window.addEventListener('load', hookJassubRenderer);
     })();
     </script>
 </body>
