@@ -1762,11 +1762,22 @@
         });
 
         // ─── WebAssembly libass (JASSUB) Subtitle Engine ───────
+        function createJassubWorkerUrl() {
+            try {
+                const code = "importScripts('https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js');";
+                const blob = new Blob([code], { type: 'application/javascript' });
+                return URL.createObjectURL(blob);
+            } catch(e) {
+                return 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js';
+            }
+        }
+
         function createJassubSubtitleRenderer() {
             let jassubInstance = null;
             let canvasEl = null;
             let containerEl = null;
             let currentDelay = 0;
+            let activeWorkerUrl = null;
 
             return {
                 mount: function(overlayEl) {
@@ -1843,10 +1854,14 @@
                     }
 
                     try {
+                        if (activeWorkerUrl) {
+                            try { URL.revokeObjectURL(activeWorkerUrl); } catch(x) {}
+                        }
+                        activeWorkerUrl = createJassubWorkerUrl();
                         jassubInstance = new JASSUB({
                             canvas: canvasEl,
                             subContent: headerText,
-                            workerUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js',
+                            workerUrl: activeWorkerUrl,
                             wasmUrl:   'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
                             timeOffset: currentDelay
                         });
@@ -1944,6 +1959,10 @@
                     if (canvasEl && canvasEl.parentNode) {
                         canvasEl.parentNode.removeChild(canvasEl);
                         canvasEl = null;
+                    }
+                    if (activeWorkerUrl) {
+                        try { URL.revokeObjectURL(activeWorkerUrl); } catch(x) {}
+                        activeWorkerUrl = null;
                     }
                 }
             };
