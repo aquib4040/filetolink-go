@@ -1125,13 +1125,6 @@
                     subtitlelang="eng"
                 ></movi-player>
 
-                <!-- Advanced ASS/SSA Multi-Region Subtitle Overlay -->
-                <div id="assSubtitleOverlay" class="ass-subtitle-overlay" aria-hidden="true">
-                    <div id="assTopRegion" class="ass-region ass-region-top"></div>
-                    <div id="assBottomRegion" class="ass-region ass-region-bottom"></div>
-                    <div id="assPosRegion" class="ass-region ass-region-pos"></div>
-                </div>
-
                 <!-- Native HTML5 Video fallback -->
                 <video id="nativeFallback" controls autoplay></video>
             </div>
@@ -1908,180 +1901,87 @@
             }
         });
 
-        // ─── High-Fidelity ASS/SSA Subtitle Presentation Engine ───
-        const assOverlay    = document.getElementById('assSubtitleOverlay');
-        const assTopRegion  = document.getElementById('assTopRegion');
-        const assBotRegion  = document.getElementById('assBottomRegion');
-        const assPosRegion  = document.getElementById('assPosRegion');
-
-        const assCueStore = [];
-
-        function parseAssCue(rawText) {
-            if (!rawText || typeof rawText !== 'string') return null;
-
-            let text = rawText.trim();
-            let isTop = false;
-            let color = null;
-            let posX = null;
-            let posY = null;
-
-            // 1. Screen alignment: {\an7}, {\an8}, {\an9} are top
-            if (/\{\\an[789]\}/i.test(text) || /\{\\a[567]\}/i.test(text)) {
-                isTop = true;
-            }
-
-            // 2. Direct positioning: {\pos(x,y)}
-            const posMatch = text.match(/\{\\pos\(\s*([\d.]+)\s*,\s*([\d.]+)\s*\)\}/i);
-            if (posMatch) {
-                posX = parseFloat(posMatch[1]);
-                posY = parseFloat(posMatch[2]);
-                if (posY < 160) {
-                    isTop = true;
+        // ─── Native WebAssembly Subtitle Presentation Engine ───
+        function injectSubtitleStyles() {
+            if (!player.shadowRoot) return;
+            if (player.shadowRoot.getElementById('canon-sub-style')) return;
+            const style = document.createElement('style');
+            style.id = 'canon-sub-style';
+            style.textContent = `
+                .movi-subtitle-overlay {
+                    pointer-events: none !important;
+                    z-index: 25 !important;
                 }
-            }
-
-            // 3. Dialogue character color: {\c&HBBGGRR&} or {\1c&HBBGGRR&}
-            const colMatch = text.match(/\{\\1?c&H([0-9a-fA-F]{6})&?\}/i);
-            if (colMatch) {
-                const hex = colMatch[1];
-                const b = hex.slice(0, 2);
-                const g = hex.slice(2, 4);
-                const r = hex.slice(4, 6);
-                color = '#' + r + g + b;
-            }
-
-            // 4. Check if text is all-caps anime sign / screen caption
-            const cleanLetters = text.replace(/\{[^}]+\}/g, '').trim();
-            if (cleanLetters.length >= 3 && cleanLetters === cleanLetters.toUpperCase() && /[A-Z]/.test(cleanLetters)) {
-                isTop = true;
-            }
-
-            // 5. Convert line breaks \N or \n into <br>
-            let html = text.replace(/\\N/gi, '<br>').replace(/\\n/gi, '<br>');
-
-            // 6. Bold {\b1} & Italic {\i1}
-            html = html.replace(/\{\\b1\}(.*?)\{\\b0\}/gi, '<b>$1</b>');
-            html = html.replace(/\{\\i1\}(.*?)\{\\i0\}/gi, '<i>$1</i>');
-
-            // 7. Strip any remaining override tags like {\fad...}
-            html = html.replace(/\{[^}]+\}/g, '').trim();
-
-            if (!html) return null;
-
-            return {
-                html: html,
-                isTop: isTop,
-                color: color,
-                posX: posX,
-                posY: posY
-            };
+                .movi-subtitle-anchor {
+                    display: flex !important;
+                    justify-content: center !important;
+                    align-items: flex-end !important;
+                    width: 100% !important;
+                    padding-bottom: 26px !important;
+                }
+                .movi-subtitle-block {
+                    display: inline-block !important;
+                    padding: 4px 14px !important;
+                    border-radius: 6px !important;
+                    background: rgba(10, 12, 20, 0.65) !important;
+                    backdrop-filter: blur(4px) !important;
+                    -webkit-backdrop-filter: blur(4px) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+                    max-width: 90% !important;
+                    text-align: center !important;
+                }
+                .movi-subtitle-line, [part="subtitle"] {
+                    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                    font-weight: 600 !important;
+                    font-size: clamp(16px, 2.3vw, 25px) !important;
+                    line-height: 1.4 !important;
+                    color: #ffffff !important;
+                    text-shadow:
+                        -1.5px -1.5px 0 #000,
+                         1.5px -1.5px 0 #000,
+                        -1.5px  1.5px 0 #000,
+                         1.5px  1.5px 0 #000,
+                         0 2px 4px rgba(0, 0, 0, 0.95),
+                         0 0 10px rgba(0, 0, 0, 0.8) !important;
+                    letter-spacing: 0.25px !important;
+                }
+            `;
+            player.shadowRoot.appendChild(style);
         }
 
-        function addAssCue(cue) {
-            if (!cue || typeof cue.start !== 'number' || !cue.text) return;
-            const exists = assCueStore.some(function(c) {
-                return Math.abs(c.start - cue.start) < 0.05 && c.text === cue.text;
-            });
-            if (!exists) {
-                const parsed = parseAssCue(cue.text);
-                if (parsed && parsed.html) {
-                    assCueStore.push({
-                        start: cue.start,
-                        end: cue.end,
-                        text: cue.text,
-                        parsed: parsed
-                    });
-                }
-            }
-        }
-
-        // Hook Movi Player demuxer cue stream
-        function hookMoviSubtitleStream() {
+        function hookSubtitleEnhancer() {
             const inner = player.player;
             if (!inner) return;
 
-            // Hook videoRenderer setSubtitleCues
-            if (inner.videoRenderer && !inner.videoRenderer._assHooked) {
-                inner.videoRenderer._assHooked = true;
-                const origSetCues = inner.videoRenderer.setSubtitleCues;
-                inner.videoRenderer.setSubtitleCues = function(cues) {
-                    if (Array.isArray(cues)) {
-                        cues.forEach(addAssCue);
-                    }
-                    if (this.subtitleOverlay) {
-                        this.subtitleOverlay.style.display = 'none';
-                    }
-                };
+            // Ensure custom renderer is NOT active
+            if (typeof inner.setSubtitleRenderer === 'function') {
+                inner.setSubtitleRenderer(null);
             }
 
-            // Hook subtitleDecoder setOnCue
-            if (inner.subtitleDecoder && !inner.subtitleDecoder._assHooked) {
-                inner.subtitleDecoder._assHooked = true;
+            // Hook subtitleDecoder to clean linebreaks \N and raw override tags
+            if (inner.subtitleDecoder && !inner.subtitleDecoder._cueEnhanced) {
+                inner.subtitleDecoder._cueEnhanced = true;
                 const origSetOnCue = inner.subtitleDecoder.setOnCue;
                 inner.subtitleDecoder.setOnCue = function(cb) {
                     origSetOnCue.call(this, function(cue) {
-                        addAssCue(cue);
+                        if (cue && cue.text) {
+                            cue.text = cue.text.replace(/\\N/gi, '\n').replace(/\\n/gi, '\n');
+                            cue.text = cue.text.replace(/\{[^}]+\}/g, '').trim();
+                        }
                         if (typeof cb === 'function') cb(cue);
                     });
                 };
             }
+
+            injectSubtitleStyles();
         }
 
-        // Real-Time Subtitle Presentation Loop
-        function updateAssSubtitles() {
-            const curTime = player.currentTime || (player.player ? player.player.getCurrentTime() : 0);
-
-            // Hide Movi Player's default single-box overlay in shadowRoot
-            if (player.shadowRoot) {
-                const defOverlay = player.shadowRoot.querySelector('.movi-subtitle-overlay');
-                if (defOverlay && defOverlay.style.display !== 'none') {
-                    defOverlay.style.display = 'none';
-                }
-            }
-
-            const active = assCueStore.filter(function(c) {
-                return curTime >= (c.start - 0.05) && curTime <= (c.end + 0.05);
-            });
-
-            let topHtml = '';
-            let botHtml = '';
-            let posHtml = '';
-
-            for (let i = 0; i < active.length; i++) {
-                const item = active[i];
-                const p = item.parsed;
-                const colorStyle = p.color ? ('style="color: ' + p.color + ';"') : '';
-
-                if (p.posX !== null && p.posY !== null) {
-                    const leftPct = Math.min(94, Math.max(6, (p.posX / 640) * 100));
-                    const topPct = Math.min(94, Math.max(6, (p.posY / 360) * 100));
-                    posHtml += '<div class="ass-cue-sign" style="position: absolute; left: ' + leftPct + '%; top: ' + topPct + '%; transform: translate(-50%, -50%);' + (p.color ? (' color: ' + p.color + ';') : '') + '">' + p.html + '</div>';
-                } else if (p.isTop) {
-                    topHtml += '<div class="ass-cue-sign" ' + colorStyle + '>' + p.html + '</div>';
-                } else {
-                    botHtml += '<div class="ass-cue-dialogue" ' + colorStyle + '>' + p.html + '</div>';
-                }
-            }
-
-            if (assTopRegion && assTopRegion.innerHTML !== topHtml) {
-                assTopRegion.innerHTML = topHtml;
-            }
-            if (assBotRegion && assBotRegion.innerHTML !== botHtml) {
-                assBotRegion.innerHTML = botHtml;
-            }
-            if (assPosRegion && assPosRegion.innerHTML !== posHtml) {
-                assPosRegion.innerHTML = posHtml;
-            }
-
-            requestAnimationFrame(updateAssSubtitles);
-        }
-
-        // Initialize hook on load and playback
-        hookMoviSubtitleStream();
-        player.addEventListener('loadeddata', hookMoviSubtitleStream);
-        player.addEventListener('loadedmetadata', hookMoviSubtitleStream);
-        player.addEventListener('playing', hookMoviSubtitleStream);
-        requestAnimationFrame(updateAssSubtitles);
+        // Initialize hooks across all player lifecycle events
+        hookSubtitleEnhancer();
+        player.addEventListener('loadeddata', hookSubtitleEnhancer);
+        player.addEventListener('loadedmetadata', hookSubtitleEnhancer);
+        player.addEventListener('playing', hookSubtitleEnhancer);
     })();
     </script>
 </body>
