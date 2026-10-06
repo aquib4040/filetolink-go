@@ -231,126 +231,30 @@
             display: block;
             background: #000;
             outline: none;
+            --movi-sub-bg-alpha: 0 !important;
         }
 
-        /* Cinema-Grade Crisp Subtitles */
+        /* Clean Cinema Subtitles (Anime & Streaming Standard) */
         movi-player::part(subtitle),
         ::part(subtitle) {
             font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-            font-weight: 600 !important;
-            font-size: clamp(16px, 2.3vw, 24px) !important;
-            line-height: 1.38 !important;
+            font-weight: 700 !important;
+            font-size: clamp(12px, 3.2vw, 19px) !important;
+            line-height: 1.25 !important;
             color: #ffffff !important;
+            background: transparent !important;
+            background-color: transparent !important;
             text-shadow:
-                -1.5px -1.5px 0 #000,
-                 1.5px -1.5px 0 #000,
-                -1.5px  1.5px 0 #000,
-                 1.5px  1.5px 0 #000,
-                 0 2px 4px rgba(0, 0, 0, 0.95),
-                 0 0 10px rgba(0, 0, 0, 0.8) !important;
-            letter-spacing: 0.25px !important;
-        }
-
-        /* ═══════════════════════════════════════════════════════
-           Advanced ASS/SSA Multi-Region Subtitle Overlay
-           ═══════════════════════════════════════════════════════ */
-        .ass-subtitle-overlay {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 45;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            box-sizing: border-box;
-            padding: 24px 20px 42px;
-            overflow: hidden;
-        }
-
-        .ass-region {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            pointer-events: none;
-        }
-
-        .ass-region-top {
-            justify-content: flex-start;
-            margin-top: 4px;
-        }
-
-        .ass-region-bottom {
-            justify-content: flex-end;
-            margin-bottom: 8px;
-        }
-
-        .ass-region-pos {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-        }
-
-        .ass-cue-sign {
-            display: inline-block;
-            color: #ffffff;
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: clamp(17px, 2.4vw, 27px);
-            font-weight: 700;
-            letter-spacing: 1.2px;
-            text-transform: uppercase;
-            text-shadow:
-                -2px -2px 0 #000,
-                 2px -2px 0 #000,
-                -2px  2px 0 #000,
-                 2px  2px 0 #000,
-                 0 0 10px rgba(0, 0, 0, 0.95);
-            background: rgba(14, 17, 26, 0.82);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            padding: 5px 18px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
-            max-width: 90%;
-            text-align: center;
-            animation: assFadeIn 0.15s ease-out;
-        }
-
-        .ass-cue-dialogue {
-            display: inline-block;
-            color: #ffffff;
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: clamp(16px, 2.3vw, 25px);
-            font-weight: 600;
-            line-height: 1.38;
-            text-shadow:
-                -1.5px -1.5px 0 #000,
-                 1.5px -1.5px 0 #000,
-                -1.5px  1.5px 0 #000,
-                 1.5px  1.5px 0 #000,
-                 0 2px 4px rgba(0, 0, 0, 0.95),
-                 0 0 10px rgba(0, 0, 0, 0.8);
-            letter-spacing: 0.25px;
-            background: rgba(10, 12, 20, 0.62);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            padding: 4px 14px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-            max-width: 90%;
-            text-align: center;
-            animation: assFadeIn 0.12s ease-out;
-        }
-
-        @keyframes assFadeIn {
-            from { opacity: 0; transform: translateY(2px); }
-            to   { opacity: 1; transform: translateY(0); }
+                -1.2px -1.2px 0 #000,
+                 1.2px -1.2px 0 #000,
+                -1.2px  1.2px 0 #000,
+                 1.2px  1.2px 0 #000,
+                -1.5px 0 0 #000,
+                 1.5px 0 0 #000,
+                 0 -1.5px 0 #000,
+                 0 1.5px 0 #000,
+                 0 2px 4px rgba(0, 0, 0, 0.9) !important;
+            letter-spacing: 0.2px !important;
         }
 
         #nativeFallback {
@@ -1904,50 +1808,69 @@
         // ─── Native WebAssembly Subtitle Presentation Engine ───
         function injectSubtitleStyles() {
             if (!player.shadowRoot) return;
-            if (player.shadowRoot.getElementById('canon-sub-style')) return;
-            const style = document.createElement('style');
-            style.id = 'canon-sub-style';
+            let style = player.shadowRoot.getElementById('canon-sub-style');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'canon-sub-style';
+                player.shadowRoot.appendChild(style);
+            }
             style.textContent = `
                 .movi-subtitle-overlay {
                     pointer-events: none !important;
                     z-index: 25 !important;
+                    padding-bottom: 8px !important;
                 }
                 .movi-subtitle-anchor {
                     display: flex !important;
                     justify-content: center !important;
                     align-items: flex-end !important;
                     width: 100% !important;
-                    padding-bottom: 26px !important;
+                    padding-bottom: 8px !important;
+                    margin: 0 !important;
                 }
                 .movi-subtitle-block {
                     display: inline-block !important;
-                    padding: 4px 14px !important;
-                    border-radius: 6px !important;
-                    background: rgba(10, 12, 20, 0.65) !important;
-                    backdrop-filter: blur(4px) !important;
-                    -webkit-backdrop-filter: blur(4px) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
-                    max-width: 90% !important;
+                    background: transparent !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    backdrop-filter: none !important;
+                    -webkit-backdrop-filter: none !important;
+                    padding: 0 !important;
+                    margin: 0 auto !important;
+                    max-width: 94% !important;
                     text-align: center !important;
                 }
                 .movi-subtitle-line, [part="subtitle"] {
+                    display: inline-block !important;
+                    width: auto !important;
+                    background: transparent !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 4px !important;
+                    margin: 0 auto !important;
                     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-                    font-weight: 600 !important;
-                    font-size: clamp(16px, 2.3vw, 25px) !important;
-                    line-height: 1.4 !important;
+                    font-weight: 700 !important;
+                    font-size: clamp(12px, 3.2vw, 19px) !important;
+                    line-height: 1.25 !important;
                     color: #ffffff !important;
+                    text-align: center !important;
+                    white-space: pre-wrap !important;
+                    word-break: break-word !important;
                     text-shadow:
-                        -1.5px -1.5px 0 #000,
-                         1.5px -1.5px 0 #000,
-                        -1.5px  1.5px 0 #000,
-                         1.5px  1.5px 0 #000,
-                         0 2px 4px rgba(0, 0, 0, 0.95),
-                         0 0 10px rgba(0, 0, 0, 0.8) !important;
-                    letter-spacing: 0.25px !important;
+                        -1.2px -1.2px 0 #000,
+                         1.2px -1.2px 0 #000,
+                        -1.2px  1.2px 0 #000,
+                         1.2px  1.2px 0 #000,
+                        -1.5px 0 0 #000,
+                         1.5px 0 0 #000,
+                         0 -1.5px 0 #000,
+                         0 1.5px 0 #000,
+                         0 2px 4px rgba(0, 0, 0, 0.9) !important;
+                    letter-spacing: 0.2px !important;
                 }
             `;
-            player.shadowRoot.appendChild(style);
         }
 
         function hookSubtitleEnhancer() {
