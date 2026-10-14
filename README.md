@@ -196,12 +196,31 @@ PORT=8080
 BIND_ADDRESS=0.0.0.0
 DOWNLOAD_THREADS=16
 
+# --- Memory Optimization (Heroku / Container Safe) ---
+GOMEMLIMIT=900MiB
+GOGC=50
+
 # --- Optional Configurations ---
 REEL_CHANNEL_ID=0
 PERMANENT_REDIRECT_URL=
 SHORTENER_API=
 SHORTENER_URL=
 ```
+
+### 🧠 Memory Optimization (`GOMEMLIMIT`)
+
+To prevent Heroku `R14`/`R15` (Memory Quota Exceeded) crashes under heavy multi-stream loads, configure Go's runtime memory limit to ~85–90% of your total container RAM:
+
+| Server / Dyno Tier | Total RAM | Recommended Setting |
+| :--- | :--- | :--- |
+| **Eco / Basic / Standard-1X** | 512 MB | `GOMEMLIMIT=450MiB` |
+| **Standard-2X (Default)** | 1024 MB (1 GB) | `GOMEMLIMIT=900MiB` |
+| **Performance-M / 2 GB VPS** | 2048 MB (2 GB) | `GOMEMLIMIT=1800MiB` |
+| **Performance-L / 4 GB Server** | 4096 MB (4 GB) | `GOMEMLIMIT=3600MiB` |
+
+> **Why `MiB` and not `MB`?**  
+> 1. **Go Syntax Requirement:** The Go runtime parser strictly expects binary IEC units (`KiB`, `MiB`, `GiB`). Passing `MB` will be rejected by Go.  
+> 2. **OS Memory Calculation:** Linux and RAM operate in powers of 2 ($1\text{ MiB} = 1,048,576\text{ bytes}$; $1024\text{ MiB} = 1\text{ GB}$). Reserving ~10–15% headroom ensures the Linux kernel and socket buffers never trigger an out-of-memory crash.
 
 ---
 
