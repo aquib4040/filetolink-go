@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,9 @@ func LoadConfig() (*Config, error) {
 	if dynamicPort != "" {
 		_ = os.Setenv("PORT", dynamicPort)
 	}
+
+	// Apply Go runtime memory limit and GC percentage
+	applyMemoryTuning()
 
 	apiID := int32(0)
 	if idStr := os.Getenv("API_ID"); idStr != "" {
@@ -284,4 +288,60 @@ func loadDotenv(filename string) {
 			}
 		}
 	}
+}
+
+func applyMemoryTuning() {
+	if memStr := os.Getenv("GOMEMLIMIT"); memStr != "" {
+		if bytes, err := parseMemLimitBytes(memStr); err == nil && bytes > 0 {
+			debug.SetMemoryLimit(bytes)
+		}
+	}
+	if gcStr := os.Getenv("GOGC"); gcStr != "" {
+		if pct, err := strconv.Atoi(gcStr); err == nil && pct > 0 {
+			debug.SetGCPercent(pct)
+		}
+	}
+}
+
+func parseMemLimitBytes(s string) (int64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty memory limit string")
+	}
+	sUpper := strings.ToUpper(s)
+	multiplier := int64(1)
+	valStr := sUpper
+
+	switch {
+	case strings.HasSuffix(sUpper, "TIB"):
+		multiplier = 1024 * 1024 * 1024 * 1024
+		valStr = strings.TrimSuffix(sUpper, "TIB")
+	case strings.HasSuffix(sUpper, "GIB"):
+		multiplier = 1024 * 1024 * 1024
+		valStr = strings.TrimSuffix(sUpper, "GIB")
+	case strings.HasSuffix(sUpper, "MIB"):
+		multiplier = 1024 * 1024
+		valStr = strings.TrimSuffix(sUpper, "MIB")
+	case strings.HasSuffix(sUpper, "KIB"):
+		multiplier = 1024
+		valStr = strings.TrimSuffix(sUpper, "KIB")
+	case strings.HasSuffix(sUpper, "B"):
+		multiplier = 1
+		valStr = strings.TrimSuffix(sUpper, "B")
+	case strings.HasSuffix(sUpper, "GB"):
+		multiplier = 1024 * 1024 * 1024
+		valStr = strings.TrimSuffix(sUpper, "GB")
+	case strings.HasSuffix(sUpper, "MB"):
+		multiplier = 1024 * 1024
+		valStr = strings.TrimSuffix(sUpper, "MB")
+	case strings.HasSuffix(sUpper, "KB"):
+		multiplier = 1024
+		valStr = strings.TrimSuffix(sUpper, "KB")
+	}
+
+	val, err := strconv.ParseInt(strings.TrimSpace(valStr), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return val * multiplier, nil
 }
