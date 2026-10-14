@@ -316,6 +316,22 @@ func (bm *BotManager) setupHandlers() {
 			return nil
 		}
 
+		if data == "refresh_status" {
+			if u.UserID != bm.cfg.OwnerID {
+				_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+					QueryID: u.QueryID,
+					Message: "Unauthorized",
+				})
+				return nil
+			}
+			_ = bm.sendStatusPanel(ctx, peer, u.MsgID)
+			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID: u.QueryID,
+				Message: "Status refreshed!",
+			})
+			return nil
+		}
+
 		if data == "about_command" {
 			_ = bm.sendAboutPanel(ctx, peer, u.MsgID)
 			_, _ = bm.api.MessagesSetBotCallbackAnswer(ctx, &tg.MessagesSetBotCallbackAnswerRequest{
@@ -589,6 +605,9 @@ func (bm *BotManager) editMessage(ctx context.Context, peer tg.InputPeerClass, m
 		NoWebpage:   true,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "MESSAGE_NOT_MODIFIED") {
+			return nil
+		}
 		return err
 	}
 

@@ -37,8 +37,7 @@ func formatReadableTime(seconds int64) string {
 	return strings.Join(res, " ")
 }
 
-func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
-	peer := toInputPeer(chatID)
+func (bm *BotManager) sendStatusPanel(ctx context.Context, peer tg.InputPeerClass, msgID int) error {
 	workloads := bm.pool.GetWorkloads()
 	uptimeStr := formatReadableTime(int64(time.Since(bm.uptime).Seconds()))
 	stats := GetAppResourceStats()
@@ -66,11 +65,20 @@ func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
 
 	var rows [][]tg.KeyboardButtonClass
 	rows = append(rows, []tg.KeyboardButtonClass{
+		markup.NewCallbackButtonWithStyle("🔄 Refresh", "refresh_status", markup.StyleBlue),
 		markup.NewCallbackButtonWithStyle(markup.ToSmallCaps("Close"), "close_panel", markup.StyleRed),
 	})
 
+	if msgID > 0 {
+		return bm.editMessage(ctx, peer, msgID, statusText, markup.NewInlineMarkup(rows))
+	}
 	_, err := bm.sendTextWithMarkup(ctx, peer, statusText, markup.NewInlineMarkup(rows))
 	return err
+}
+
+func (bm *BotManager) handleStatus(ctx context.Context, chatID int64) error {
+	peer := toInputPeer(chatID)
+	return bm.sendStatusPanel(ctx, peer, 0)
 }
 
 func (bm *BotManager) handleUsers(ctx context.Context, chatID int64) error {
