@@ -1521,19 +1521,24 @@
         });
         // ─── JASSUB WebAssembly ASS Subtitle Renderer ───────────
         let jassubWorkerBlobUrl = null;
+        let jassubWorkerPromise = null;
         async function getJassubWorkerUrl() {
             if (jassubWorkerBlobUrl) return jassubWorkerBlobUrl;
-            try {
-                const res = await fetch('https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js');
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const code = await res.text();
-                const blob = new Blob([code], { type: 'application/javascript' });
-                jassubWorkerBlobUrl = URL.createObjectURL(blob);
-                return jassubWorkerBlobUrl;
-            } catch(err) {
-                console.warn('[JASSUB] Worker blob creation failed, using CDN fallback:', err);
-                return 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js';
-            }
+            if (jassubWorkerPromise) return jassubWorkerPromise;
+            jassubWorkerPromise = (async () => {
+                try {
+                    const res = await fetch('https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js');
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const code = await res.text();
+                    const blob = new Blob([code], { type: 'application/javascript' });
+                    jassubWorkerBlobUrl = URL.createObjectURL(blob);
+                    return jassubWorkerBlobUrl;
+                } catch(err) {
+                    console.warn('[JASSUB] Worker blob creation failed, using CDN fallback:', err);
+                    return 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js';
+                }
+            })();
+            return jassubWorkerPromise;
         }
 
         class MoviJassubSubtitleRenderer {
@@ -1546,6 +1551,8 @@
                 this.decoder = new TextDecoder('utf-8');
                 this.seenPackets = new Set();
                 this.readOrder = 0;
+                this.pendingPackets = [];
+                this.initPromise = null;
             }
 
             mount(overlay) {
@@ -1589,8 +1596,13 @@
                     headerText += '\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
                 }
 
+                if (this.initPromise) {
+                    try { await this.initPromise; } catch(e) {}
+                }
+
                 if (!this.jassub && window.JASSUB && this.canvas) {
-                    try {
+                    this.initPromise = (async () => {
+                        const defaultFontUrl = 'https://cdn.jsdelivr.net/npm/jassub/dist/default.woff2';
                         const workerUrl = await getJassubWorkerUrl();
                         this.jassub = new window.JASSUB({
                             canvas: this.canvas,
@@ -1598,23 +1610,56 @@
                             workerUrl: workerUrl,
                             wasmUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
                             modernWasmUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker-modern.wasm',
-                            defaultFont: 'https://cdn.jsdelivr.net/npm/jassub/dist/default.woff2',
+                            legacyWasmUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm.js',
+                            fonts: [defaultFontUrl],
+                            availableFonts: {
+                                'liberation sans': defaultFontUrl,
+                                'default': defaultFontUrl,
+                                'arial': defaultFontUrl,
+                                'sans-serif': defaultFontUrl,
+                                'trebuchet ms': defaultFontUrl,
+                                'dejavu sans': defaultFontUrl,
+                                'tahoma': defaultFontUrl,
+                                'verdana': defaultFontUrl
+                            },
+                            fallbackFont: 'liberation sans',
+                            useLocalFonts: false,
                             onDemandRender: false,
                             useSimd: true
                         });
                         console.log('[JASSUB] Engine initialized for track:', track.id, track.label || track.codec);
+
+                        if (this.pendingPackets.length > 0) {
+                            const queued = this.pendingPackets.slice();
+                            this.pendingPackets = [];
+                            for (const pkt of queued) {
+                                this.pushPacket(pkt);
+                            }
+                        }
+                    })();
+
+                    try {
+                        await this.initPromise;
                     } catch(e) {
                         console.error('[JASSUB] Engine init error:', e);
+                    } finally {
+                        this.initPromise = null;
                     }
                 } else if (this.jassub) {
                     try {
                         this.jassub.setTrack(headerText);
-                    } catch(e) {}
+                    } catch(e) {
+                        console.warn('[JASSUB] setTrack error:', e);
+                    }
                 }
             }
 
             pushPacket(pkt) {
-                if (!this.jassub || !pkt || !pkt.data) return;
+                if (!pkt || !pkt.data) return;
+                if (!this.jassub) {
+                    this.pendingPackets.push(pkt);
+                    return;
+                }
                 try {
                     const raw = this.decoder.decode(pkt.data).trim();
                     if (!raw) return;
@@ -1682,7 +1727,8 @@
                 if (!this.jassub || !this.canvas) return;
                 try {
                     const isPaused = !!player.paused;
-                    this.jassub.setCurrentTime(isPaused, currentTime + this.delay);
+                    const rate = player.playbackRate || 1;
+                    this.jassub.setCurrentTime(isPaused, currentTime + this.delay, rate);
 
                     const parent = this.canvas.parentNode || player;
                     const rect = parent.getBoundingClientRect();
@@ -1693,7 +1739,7 @@
                         this.canvas.width = dispW;
                         this.canvas.height = dispH;
                         if (typeof this.jassub.resize === 'function') {
-                            this.jassub.resize(dispW, dispH);
+                            this.jassub.resize(dispW, dispH, 0, 0, isPaused);
                         }
                     }
                 } catch(e) {}
@@ -1711,6 +1757,8 @@
             }
 
             destroy() {
+                this.pendingPackets = [];
+                this.initPromise = null;
                 if (this.jassub) {
                     try { this.jassub.destroy(); } catch(e) {}
                     this.jassub = null;
@@ -1723,6 +1771,7 @@
         }
 
         let assRenderer = null;
+        let lastAttachedTrackId = null;
         function syncSubtitleRenderer() {
             if (!window.JASSUB) return;
             try {
@@ -1732,20 +1781,26 @@
                 if (!track) {
                     if (assRenderer) {
                         player.setSubtitleRenderer(null);
+                        lastAttachedTrackId = null;
                     }
                     return;
                 }
                 const codec = (track.codec || '').toLowerCase();
                 const isAss = codec.includes('ass') || codec.includes('ssa');
                 if (isAss) {
+                    if (lastAttachedTrackId === track.id && player.player?._customSubtitleRenderer === assRenderer) {
+                        return; // Already attached to this track
+                    }
                     if (!assRenderer) {
                         assRenderer = new MoviJassubSubtitleRenderer();
                     }
                     player.setSubtitleRenderer(assRenderer);
+                    lastAttachedTrackId = track.id;
                     console.log('[Subtitle] Active track is ASS (' + (track.label || track.id) + '), attached JASSUB renderer');
                 } else {
                     if (assRenderer) {
                         player.setSubtitleRenderer(null);
+                        lastAttachedTrackId = null;
                         console.log('[Subtitle] Active track is ' + track.codec + ', using native renderer');
                     }
                 }
