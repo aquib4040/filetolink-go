@@ -9,6 +9,7 @@
     <meta name="description" content="Canon FileToLink Stream - {{ .file_name }}">
     <meta property="og:title" content="{{ .file_name }}">
     <meta property="og:type" content="video.other">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -954,6 +955,16 @@
                     </div>
 
                     <div class="header-right">
+                        <button class="action-btn" id="fsSeekBackBtn" title="Rewind 10s (←)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" id="fsSeekFwdBtn" title="Forward 10s (→)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+                            </svg>
+                        </button>
                         <button class="action-btn" id="fsCopyBtn" title="Copy Stream URL">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
@@ -1015,6 +1026,8 @@
                     ambient
                     stablevolume
                     resume
+                    fastseek="all"
+                    doubletap
                     subtitlelang="eng"
                 ></movi-player>
 
@@ -1031,6 +1044,20 @@
 
             <!-- YouTube-Style Touch Action Pills Row (Scrolls smoothly on mobile) -->
             <div class="action-pills-row">
+                <button class="pill-btn" id="pillSeekBackBtn" title="Rewind 10 Seconds (← or J)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+                    </svg>
+                    <span>-10s</span>
+                </button>
+
+                <button class="pill-btn" id="pillSeekFwdBtn" title="Forward 10 Seconds (→ or L)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+                    </svg>
+                    <span>+10s</span>
+                </button>
+
                 <a href="/dl/{{ .token }}" class="pill-btn primary" title="Direct Download">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
@@ -1265,6 +1292,8 @@
          Movi Player WASM Engine (Full All-In-One Bundle)
          ═══════════════════════════════════════════════════════ -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/movi-player/dist/element.js"></script>
+    <!-- JASSUB (libass WebAssembly Engine for Anime Styled ASS/SSA Subtitles) -->
+    <script src="https://cdn.jsdelivr.net/npm/jassub/dist/jassub.umd.js"></script>
 
 
     <script>
@@ -1490,15 +1519,252 @@
             unlockAudio();
             autoSelectSubtitle();
         });
+        // ─── JASSUB WebAssembly ASS Subtitle Renderer ───────────
+        let jassubWorkerBlobUrl = null;
+        async function getJassubWorkerUrl() {
+            if (jassubWorkerBlobUrl) return jassubWorkerBlobUrl;
+            try {
+                const res = await fetch('https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const code = await res.text();
+                const blob = new Blob([code], { type: 'application/javascript' });
+                jassubWorkerBlobUrl = URL.createObjectURL(blob);
+                return jassubWorkerBlobUrl;
+            } catch(err) {
+                console.warn('[JASSUB] Worker blob creation failed, using CDN fallback:', err);
+                return 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js';
+            }
+        }
+
+        class MoviJassubSubtitleRenderer {
+            constructor() {
+                this.jassub = null;
+                this.overlay = null;
+                this.canvas = null;
+                this.delay = 0;
+                this.activeTrack = null;
+                this.decoder = new TextDecoder('utf-8');
+                this.seenPackets = new Set();
+                this.readOrder = 0;
+            }
+
+            mount(overlay) {
+                this.overlay = overlay;
+                const parent = overlay ? (overlay.parentNode || overlay) : (player.shadowRoot || stageWrapper);
+                if (!this.canvas && parent) {
+                    this.canvas = document.createElement('canvas');
+                    this.canvas.className = 'jassub-subtitle-canvas';
+                    this.canvas.style.position = 'absolute';
+                    this.canvas.style.top = '0';
+                    this.canvas.style.left = '0';
+                    this.canvas.style.width = '100%';
+                    this.canvas.style.height = '100%';
+                    this.canvas.style.pointerEvents = 'none';
+                    this.canvas.style.zIndex = '10';
+                    parent.appendChild(this.canvas);
+                }
+            }
+
+            async configure(track, extradata) {
+                this.activeTrack = track;
+                this.seenPackets.clear();
+                this.readOrder = 0;
+
+                const codec = (track?.codec || '').toLowerCase();
+                if (!codec.includes('ass') && !codec.includes('ssa')) {
+                    if (this.canvas) this.canvas.style.display = 'none';
+                    return;
+                }
+
+                if (this.canvas) this.canvas.style.display = 'block';
+
+                let headerText = '';
+                if (extradata && extradata.length > 0) {
+                    headerText = this.decoder.decode(extradata);
+                } else {
+                    headerText = '[Script Info]\nTitle: Anime Subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,24,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+                }
+
+                if (!headerText.includes('[Events]')) {
+                    headerText += '\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+                }
+
+                if (!this.jassub && window.JASSUB && this.canvas) {
+                    try {
+                        const workerUrl = await getJassubWorkerUrl();
+                        this.jassub = new window.JASSUB({
+                            canvas: this.canvas,
+                            subContent: headerText,
+                            workerUrl: workerUrl,
+                            wasmUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm',
+                            modernWasmUrl: 'https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker-modern.wasm',
+                            defaultFont: 'https://cdn.jsdelivr.net/npm/jassub/dist/default.woff2',
+                            onDemandRender: false,
+                            useSimd: true
+                        });
+                        console.log('[JASSUB] Engine initialized for track:', track.id, track.label || track.codec);
+                    } catch(e) {
+                        console.error('[JASSUB] Engine init error:', e);
+                    }
+                } else if (this.jassub) {
+                    try {
+                        this.jassub.setTrack(headerText);
+                    } catch(e) {}
+                }
+            }
+
+            pushPacket(pkt) {
+                if (!this.jassub || !pkt || !pkt.data) return;
+                try {
+                    const raw = this.decoder.decode(pkt.data).trim();
+                    if (!raw) return;
+
+                    let startMs = Math.round(((pkt.timestamp || 0) + this.delay) * 1000);
+                    let durationMs = Math.round((pkt.duration && pkt.duration > 0 ? pkt.duration : 5) * 1000);
+
+                    let layer = 0, style = 'Default', name = '', marginL = 0, marginR = 0, marginV = 0, effect = '', text = '';
+                    let readOrder = ++this.readOrder;
+
+                    if (raw.startsWith('Dialogue:')) {
+                        const parts = raw.substring(9).trim().split(',');
+                        if (parts.length >= 9) {
+                            layer = parseInt(parts[0], 10) || 0;
+                            style = parts[3] || 'Default';
+                            name = parts[4] || '';
+                            marginL = parseInt(parts[5], 10) || 0;
+                            marginR = parseInt(parts[6], 10) || 0;
+                            marginV = parseInt(parts[7], 10) || 0;
+                            effect = parts[8] || '';
+                            text = parts.slice(9).join(',');
+                        } else {
+                            text = raw;
+                        }
+                    } else {
+                        const parts = raw.split(',');
+                        if (parts.length >= 9) {
+                            readOrder = parseInt(parts[0], 10) || readOrder;
+                            layer = parseInt(parts[1], 10) || 0;
+                            style = parts[2] || 'Default';
+                            name = parts[3] || '';
+                            marginL = parseInt(parts[4], 10) || 0;
+                            marginR = parseInt(parts[5], 10) || 0;
+                            marginV = parseInt(parts[6], 10) || 0;
+                            effect = parts[7] || '';
+                            text = parts.slice(8).join(',');
+                        } else {
+                            text = raw;
+                        }
+                    }
+
+                    const dedupKey = startMs + '_' + text;
+                    if (this.seenPackets.has(dedupKey)) return;
+                    this.seenPackets.add(dedupKey);
+
+                    this.jassub.createEvent({
+                        Start: startMs,
+                        Duration: durationMs,
+                        ReadOrder: readOrder,
+                        Layer: layer,
+                        Style: style,
+                        Name: name,
+                        MarginL: marginL,
+                        MarginR: marginR,
+                        MarginV: marginV,
+                        Effect: effect,
+                        Text: text
+                    });
+                } catch(e) {
+                    console.warn('[JASSUB] Packet push error:', e);
+                }
+            }
+
+            render(currentTime, videoWidth, videoHeight) {
+                if (!this.jassub || !this.canvas) return;
+                try {
+                    const isPaused = !!player.paused;
+                    this.jassub.setCurrentTime(isPaused, currentTime + this.delay);
+
+                    const parent = this.canvas.parentNode || player;
+                    const rect = parent.getBoundingClientRect();
+                    const dispW = Math.round(rect.width) || videoWidth || 1920;
+                    const dispH = Math.round(rect.height) || videoHeight || 1080;
+
+                    if (this.canvas.width !== dispW || this.canvas.height !== dispH) {
+                        this.canvas.width = dispW;
+                        this.canvas.height = dispH;
+                        if (typeof this.jassub.resize === 'function') {
+                            this.jassub.resize(dispW, dispH);
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            setDelay(delaySec) {
+                this.delay = delaySec || 0;
+            }
+
+            clear() {
+                if (this.canvas) {
+                    const ctx = this.canvas.getContext('2d');
+                    if (ctx) ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+
+            destroy() {
+                if (this.jassub) {
+                    try { this.jassub.destroy(); } catch(e) {}
+                    this.jassub = null;
+                }
+                if (this.canvas && this.canvas.parentNode) {
+                    this.canvas.parentNode.removeChild(this.canvas);
+                    this.canvas = null;
+                }
+            }
+        }
+
+        let assRenderer = null;
+        function syncSubtitleRenderer() {
+            if (!window.JASSUB) return;
+            try {
+                const inner = player.player;
+                if (!inner) return;
+                const track = inner.trackManager?.getActiveSubtitleTrack?.();
+                if (!track) {
+                    if (assRenderer) {
+                        player.setSubtitleRenderer(null);
+                    }
+                    return;
+                }
+                const codec = (track.codec || '').toLowerCase();
+                const isAss = codec.includes('ass') || codec.includes('ssa');
+                if (isAss) {
+                    if (!assRenderer) {
+                        assRenderer = new MoviJassubSubtitleRenderer();
+                    }
+                    player.setSubtitleRenderer(assRenderer);
+                    console.log('[Subtitle] Active track is ASS (' + (track.label || track.id) + '), attached JASSUB renderer');
+                } else {
+                    if (assRenderer) {
+                        player.setSubtitleRenderer(null);
+                        console.log('[Subtitle] Active track is ' + track.codec + ', using native renderer');
+                    }
+                }
+            } catch(e) {
+                console.warn('[Subtitle] syncSubtitleRenderer error:', e);
+            }
+        }
+
         player.addEventListener('subtitletrackchange', function() {
             if (player.player?.trackManager?.getActiveSubtitleTrack?.()) {
                 subtitleSelected = true;
             }
+            syncSubtitleRenderer();
         });
 
         // Periodic check during demuxing initialization (runs every 250ms for first 8s)
         const subCheckTimer = setInterval(function() {
             autoSelectSubtitle();
+            syncSubtitleRenderer();
             if (subtitleSelected) clearInterval(subCheckTimer);
         }, 250);
         setTimeout(function() { clearInterval(subCheckTimer); }, 8000);
@@ -1762,9 +2028,42 @@
             if (e.target === modal) toggleModal(false);
         });
 
+        // ─── Seek Helper (Smooth Skip & Instant Feedback) ─────
+        function seekRelative(seconds) {
+            try {
+                const cur = (typeof player.currentTime === 'number') ? player.currentTime : (player.player?.currentTime || 0);
+                const dur = (typeof player.duration === 'number' && !isNaN(player.duration)) ? player.duration : Infinity;
+                const target = Math.max(0, Math.min(dur, cur + seconds));
+                player.currentTime = target;
+                if (typeof player.showControls === 'function') {
+                    player.showControls();
+                }
+                const sign = seconds > 0 ? ('+' + seconds) : ('' + seconds);
+                showToast('Seek ' + sign + 's');
+            } catch(err) {
+                console.warn('[Seek] Error:', err);
+            }
+        }
+
+        ['pillSeekBackBtn', 'fsSeekBackBtn'].forEach(function(id) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                seekRelative(-10);
+            });
+        });
+
+        ['pillSeekFwdBtn', 'fsSeekFwdBtn'].forEach(function(id) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                seekRelative(10);
+            });
+        });
+
         // ─── Keyboard Listeners ────────────────────────────────
         document.addEventListener('keydown', function(e) {
-            if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
             if (e.key === '?' || (e.shiftKey && e.key === '/')) {
                 e.preventDefault();
@@ -1780,6 +2079,66 @@
             if (e.key.toLowerCase() === 'f') {
                 e.preventDefault();
                 toggleFullscreen();
+                return;
+            }
+
+            // Arrow Left or 'J': Seek backward 10s
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
+                e.preventDefault();
+                seekRelative(-10);
+                return;
+            }
+
+            // Arrow Right or 'L': Seek forward 10s
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'l') {
+                e.preventDefault();
+                seekRelative(10);
+                return;
+            }
+
+            // Arrow Up: Volume Up 10%
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                try {
+                    player.volume = Math.min(1, (player.volume || 0) + 0.1);
+                    player.muted = false;
+                    showToast('Volume ' + Math.round(player.volume * 100) + '%');
+                } catch(err) {}
+                return;
+            }
+
+            // Arrow Down: Volume Down 10%
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                try {
+                    player.volume = Math.max(0, (player.volume || 1) - 0.1);
+                    showToast('Volume ' + Math.round(player.volume * 100) + '%');
+                } catch(err) {}
+                return;
+            }
+
+            // Space or 'K': Toggle Play / Pause
+            if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                try {
+                    if (player.paused) {
+                        player.play();
+                        showToast('Play');
+                    } else {
+                        player.pause();
+                        showToast('Pause');
+                    }
+                } catch(err) {}
+                return;
+            }
+
+            // 'M': Mute / Unmute
+            if (e.key.toLowerCase() === 'm') {
+                e.preventDefault();
+                try {
+                    player.muted = !player.muted;
+                    showToast(player.muted ? 'Muted' : 'Unmuted');
+                } catch(err) {}
                 return;
             }
 
