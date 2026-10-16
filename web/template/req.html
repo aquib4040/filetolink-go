@@ -1559,8 +1559,10 @@
 
             mount(overlay) {
                 this.overlay = overlay;
-                const parent = overlay || (player.shadowRoot || stageWrapper);
-                if (!this.canvas && parent) {
+                // Mount to player.shadowRoot (or overlay's parent) - NEVER inside overlay directly,
+                // because movi-player's renderSubtitles() clears overlay.innerHTML on every tick.
+                const parent = player.shadowRoot || (overlay && overlay.parentNode) || stageWrapper;
+                if (!this.canvas) {
                     this.canvas = document.createElement('canvas');
                     this.canvas.className = 'jassub-subtitle-canvas';
                     this.canvas.style.position = 'absolute';
@@ -1570,16 +1572,15 @@
                     this.canvas.style.height = '100%';
                     this.canvas.style.pointerEvents = 'none';
                     this.canvas.style.zIndex = '10';
-                    this.canvas.style.imageRendering = 'auto';
+                    this.canvas.style.display = 'block';
 
-                    // High-definition initial canvas buffer (1920x1080) so it never initializes at low 300x150
-                    const vW = (player.player?.trackManager?.getActiveVideoTrack?.()?.width) || 1920;
-                    const vH = (player.player?.trackManager?.getActiveVideoTrack?.()?.height) || 1080;
-                    this.canvas.width = vW;
-                    this.canvas.height = vH;
-                    this.currentRenderW = vW;
-                    this.currentRenderH = vH;
-
+                    // Initial Full HD buffer so worker allocates a sharp frame from start
+                    this.canvas.width = 1920;
+                    this.canvas.height = 1080;
+                    this.currentRenderW = 1920;
+                    this.currentRenderH = 1080;
+                }
+                if (parent && this.canvas.parentNode !== parent) {
                     parent.appendChild(this.canvas);
                 }
             }
@@ -1621,7 +1622,7 @@
                         const vW = vTrack?.width || 1920;
                         const vH = vTrack?.height || 1080;
                         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-                        const rect = (this.overlay || this.canvas.parentNode || player).getBoundingClientRect();
+                        const rect = player.getBoundingClientRect();
                         const dispW = Math.round(rect.width) || vW;
                         const dispH = Math.round(rect.height) || vH;
 
@@ -1654,11 +1655,9 @@
                             fallbackFont: 'liberation sans',
                             useLocalFonts: false,
                             onDemandRender: false,
-                            useSimd: true,
-                            prescaleFactor: 1,
-                            prescaleHeightLimit: 2160,
-                            maxRenderHeight: 2160
+                            useSimd: true
                         });
+                        this.jassub._video = { videoWidth: vW, videoHeight: vH };
                         this.jassub._videoWidth = vW;
                         this.jassub._videoHeight = vH;
                         console.log('[JASSUB] Engine initialized for track:', track.id, track.label || track.codec, targetW + 'x' + targetH);
@@ -1764,29 +1763,41 @@
                     const rate = player.playbackRate || 1;
                     this.jassub.setCurrentTime(isPaused, currentTime + this.delay, rate);
 
+                    // Re-attach canvas if ever disconnected from shadowRoot
+                    const host = player.shadowRoot || (this.overlay && this.overlay.parentNode) || stageWrapper;
+                    if (host && this.canvas.parentNode !== host) {
+                        host.appendChild(this.canvas);
+                    }
+
                     const vW = videoWidth || 1920;
                     const vH = videoHeight || 1080;
                     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-                    const rect = (this.overlay || this.canvas.parentNode || player).getBoundingClientRect();
+                    const rect = player.getBoundingClientRect();
                     const dispW = Math.round(rect.width) || vW;
                     const dispH = Math.round(rect.height) || vH;
 
-                    // Ensure crisp high-definition resolution matching at least full video resolution
+                    // Ensure high-definition native or Retina canvas resolution
                     const targetW = Math.min(3840, Math.max(vW, Math.round(dispW * dpr)));
                     const targetH = Math.min(2160, Math.max(vH, Math.round(dispH * dpr)));
 
                     if (this.currentRenderW !== targetW || this.currentRenderH !== targetH) {
                         this.currentRenderW = targetW;
                         this.currentRenderH = targetH;
-                        this.canvas.width = targetW;
-                        this.canvas.height = targetH;
+                        if (!this.jassub._video) {
+                            this.jassub._video = { videoWidth: vW, videoHeight: vH };
+                        } else {
+                            this.jassub._video.videoWidth = vW;
+                            this.jassub._video.videoHeight = vH;
+                        }
                         this.jassub._videoWidth = vW;
                         this.jassub._videoHeight = vH;
                         if (typeof this.jassub.resize === 'function') {
                             this.jassub.resize(targetW, targetH, 0, 0, isPaused);
                         }
                     }
-                } catch(e) {}
+                } catch(e) {
+                    console.warn('[JASSUB] render error:', e);
+                }
             }
 
             setDelay(delaySec) {
