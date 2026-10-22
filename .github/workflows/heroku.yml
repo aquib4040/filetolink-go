@@ -2,6 +2,11 @@ name: Deploy to Heroku
 
 on:
   workflow_dispatch:
+    inputs:
+      app_region:
+        description: 'Heroku App Region (optional, e.g. eu or us; defaults to HEROKU_APP_REGION secret or eu)'
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -41,11 +46,18 @@ jobs:
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_REGION: ${{ inputs.app_region || secrets.HEROKU_APP_REGION || secrets.HEROKU_REGION || 'eu' }}
         run: |
+          APP_REGION="${HEROKU_APP_REGION:-${HEROKU_REGION:-eu}}"
+          echo "Target Heroku Region: ${APP_REGION}"
           echo "Checking Heroku app status for '${HEROKU_APP_NAME}'..."
           if ! heroku apps:info -a "${HEROKU_APP_NAME}" > /dev/null 2>&1; then
-            echo "App does not exist. Creating new Heroku app: ${HEROKU_APP_NAME}"
-            heroku apps:create "${HEROKU_APP_NAME}"
+            echo "App does not exist. Creating new Heroku app: ${HEROKU_APP_NAME} in region: ${APP_REGION}"
+            if [ -n "${HEROKU_APP_NAME}" ]; then
+              heroku apps:create "${HEROKU_APP_NAME}" --region "${APP_REGION}"
+            else
+              heroku apps:create --region "${APP_REGION}"
+            fi
           else
             echo "Using existing Heroku app: ${HEROKU_APP_NAME}"
           fi

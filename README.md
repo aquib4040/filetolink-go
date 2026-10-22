@@ -231,6 +231,7 @@ To prevent Heroku `R14`/`R15` (Memory Quota Exceeded) crashes under heavy multi-
 2. In your GitHub repository, add your Heroku credentials under **Settings > Secrets and variables > Actions**:
    - `HEROKU_API_KEY`: Your Heroku API key
    - `HEROKU_APP_NAME`: Your Heroku app name
+   - `HEROKU_APP_REGION` *(Optional)*: Your Heroku app region (`eu` or `us`, defaults to `eu` if not provided)
    - Plus all required `.env` secrets (`BOT_TOKEN`, `API_ID`, `API_HASH`, `BIN_CHANNEL`, `ENCRYPTION_KEY`, etc.)
 3. The included GitHub Actions workflow (`.github/workflows/heroku.yml`) will automatically build, test, and release the container to Heroku with zero downtime.
 
